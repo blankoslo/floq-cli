@@ -42,10 +42,10 @@
 use clap::{App, AppSettings, Arg};
 
 fn main() {
-    let matches = App::new("git")
-        .about("A fictional versioning CLI")
+    let matches = App::new("timetracker")
+        .about("Timetracking in the terminal")
         .version("1.0")
-        .author("Me")
+        .author("The Rust Gang")
         .subcommand(
             App::new("clone")
                 .about("clones repos")
@@ -71,7 +71,7 @@ fn main() {
             App::new("add")
                 .about("adds things")
                 .author("Someone Else") // Subcommands can list different authors
-                .version("v2.0 (I'm versioned differently") // or different version from their parents
+                .version("v2.0 (I'm versioned differently)") // or different version from their parents
                 .setting(AppSettings::ArgRequiredElseHelp) // They can even have different settings
                 .arg(
                     Arg::new("stuff")
@@ -83,38 +83,9 @@ fn main() {
         )
         .get_matches();
 
-    // At this point, the matches we have point to git. Keep this in mind...
-
-    // You can check if one of git's subcommands was used
-    if matches.is_present("clone") {
-        println!("'git clone' was run.");
-    }
-
     // You can see which subcommand was used
     if let Some(subcommand) = matches.subcommand_name() {
         println!("'git {}' was used", subcommand);
-
-        // It's important to note, this *only* check's git's DIRECT children, **NOT** it's
-        // grandchildren, great grandchildren, etc.
-        //
-        // i.e. if the command `git push remove --stuff foo` was run, the above will only print out,
-        // `git push` was used. We'd need to get push's matches to see further into the tree
-    }
-
-    // An alternative to checking the name is matching on known names. Again notice that only the
-    // direct children are matched here.
-    match matches.subcommand_name() {
-        Some("clone") => println!("'git clone' was used"),
-        Some("push") => println!("'git push' was used"),
-        Some("add") => println!("'git add' was used"),
-        None => println!("No subcommand was used"),
-        _ => unreachable!(), // Assuming you've listed all direct children above, this is unreachable
-    }
-
-    // You could get the independent subcommand matches, although this is less common
-    if let Some(clone_matches) = matches.subcommand_matches("clone") {
-        // Now we have a reference to clone's matches
-        println!("Cloning repo: {}", clone_matches.value_of("repo").unwrap());
     }
 
     // The most common way to handle subcommands is via a combined approach using
@@ -131,7 +102,7 @@ fn main() {
                     // Now we have a reference to remote's matches
                     println!("Pushing to {}", remote_matches.value_of("repo").unwrap());
                 }
-                ("local", Some(_)) => {
+                ("local", _) => {
                     println!("'git push local' was used");
                 }
                 _ => unreachable!(),
