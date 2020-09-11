@@ -148,7 +148,7 @@ fn main() {
                     // Now we have a reference to remote's matches
                     println!("Pushing to {}", remote_matches.value_of("repo").unwrap());
                 }
-                ("local", Some(_)) => {
+                ("local", _) => {
                     println!("'git push local' was used");
                 }
                 _ => unreachable!(),
