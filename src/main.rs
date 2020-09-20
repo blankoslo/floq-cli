@@ -35,7 +35,7 @@ fn main() {
         .get_matches();
 
     match matches.subcommand() {
-        ("projects", Some(projects_matches)) => {
+        Some(("projects", projects_matches)) => {
             let all = projects_matches.is_present("all");
             println!("Cloning {}", all);
 
@@ -45,10 +45,10 @@ fn main() {
                 println!("get_all_projects is not implemented yet...")
             }
         }
-        ("history", _) => {
+        Some(("history", _)) => {
             println!("History is not implemented yet...")
         }
-        ("track", Some(track_matches)) => {
+        Some(("track", track_matches)) => {
             // Now we have a reference to add's matches
             println!(
                 "Tracking {}",
@@ -59,8 +59,8 @@ fn main() {
                     .join(", ")
             );
         }
-        (_, None) => println!("No subcommand was used"), // If no subcommand was used it'll match the tuple ("", None)
-        _ => unreachable!(), // If all subcommands are defined above, anything else is unreachabe!()
+        Some((_, _)) => unreachable!("Unknown commands should be handled by the library"),
+        None => println!("No subcommand was used"), // If all subcommands are defined above, anything else is unreachable!()
     }
 
     // An alternative to checking the name is matching on known names. Again notice that only the
