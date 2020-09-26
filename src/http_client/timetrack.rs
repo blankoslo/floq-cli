@@ -1,97 +1,126 @@
+use std::error::Error;
 use std::time::SystemTime;
 
-use chrono::{Datelike, DateTime, Duration, NaiveDate, Utc};
-use reqwest::blocking::Client;
+use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+
+use super::HTTPClient;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Timetrack {
     id: String,
     project: String,
     customer: String,
+    date: NaiveDate,
     time: Duration,
 }
 
 #[derive(Serialize, Debug)]
-struct Request {
+struct TimetrackedProjectsRequest {
     employee_id: u32,
     date: NaiveDate,
 }
 
 #[derive(Deserialize, Debug)]
-struct Response {
+struct TimetrackedProjectsResponse {
     id: String,
     project: String,
     customer: String,
-    minutes: u32,
+    minutes: u16,
 }
 
-impl Response {
-    fn to_timetracked_project(&self) -> Timetrack {
+impl TimetrackedProjectsResponse {
+    fn to_timetracked_project(&self, date: NaiveDate) -> Timetrack {
         Timetrack {
             id: self.id.clone(),
             project: self.project.clone(),
             customer: self.customer.clone(),
-            time: Duration::minutes(self.minutes.into()),
+            date,
+            time: Duration::minutes(self.minutes as i64),
         }
     }
-}
-
-pub struct HTTPClient {
-    client: Client
 }
 
 impl HTTPClient {
-    pub fn new() -> Self {
-        Self {
-            client: Client::new()
-        }
-    }
-
-    pub fn get_current_week_timetracks(
+    pub fn get_current_week_timetracking(
         &self,
         employee_id: u32,
-    ) -> Result<Vec<Timetrack>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<Timetrack>, Box<dyn Error>> {
         let now: DateTime<Utc> = DateTime::from(SystemTime::now());
         let today = now.date();
-        let days_from_monday = today
-            .weekday()
-            .num_days_from_monday();
+        let days_from_monday = today.weekday().num_days_from_monday();
 
         let monday = today.naive_local() - Duration::days(1) * days_from_monday as i32;
 
-        let results: Result<Vec<Vec<Timetrack>>, Box<dyn std::error::Error>> =
-            (0..7).map(|i| monday + Duration::days(1) * i as i32)
-                .map(|day| self.get_timetracks_for_day(employee_id, day))
-                .collect();
+        let results: Result<Vec<Vec<Timetrack>>, Box<dyn std::error::Error>> = (0..7)
+            .map(|i| monday + Duration::days(1) * i as i32)
+            .map(|day| self.get_timetracking_for_day(employee_id, day))
+            .collect();
 
         Ok(results?.into_iter().flatten().collect())
     }
 
-    pub fn get_timetracks_for_day(
+    pub fn get_timetracking_for_day(
         &self,
         employee_id: u32,
         date: NaiveDate,
     ) -> Result<Vec<Timetrack>, Box<dyn std::error::Error>> {
-
-        let body = Request {
-            employee_id,
-            date,
-        }.serialize(serde_json::value::Serializer)?.to_string();
+        let body = TimetrackedProjectsRequest { employee_id, date }
+            .serialize(serde_json::value::Serializer)?
+            .to_string();
 
         let response: reqwest::blocking::Response = self.client.post("https://api-blank.floq.no/rpc/projects_for_employee_for_date")
             .body(body)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
-            .header("Authorization", format!("Bearer {}", "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiZW1wbG95ZWUiLCJlbWFpbCI6InRyb25kLm95ZG5hQGJsYW5rLm5vIiwiaWF0IjoxNTk5NTYzOTkxLCJleHAiOjE2MDAxNjg3OTF9.rjdN1vvCpo0s9KkLJW3aySh8921VzT63czRrprE7JdA"))
+            .header("Authorization", format!("Bearer {}", ))
             .send()?;
 
-        let response: Vec<Response> = response.json()?;
+        let response: Vec<TimetrackedProjectsResponse> = response.json()?;
 
-        Ok(response.iter()
-            .map(|r| r.to_timetracked_project())
+        Ok(response
+            .iter()
+            .map(|r| r.to_timetracked_project(date))
             .filter(|tp| tp.time != Duration::zero())
             .collect())
     }
 }
 
+#[derive(Serialize, Debug)]
+struct TimetrackRequest {
+    creator: u32,
+    employee: u32,
+    project: String,
+    date: NaiveDate,
+    minutes: u16,
+}
+
+impl HTTPClient {
+    pub fn timetrack(
+        &self,
+        employee_id: u32,
+        project_id: String,
+        date: NaiveDate,
+        time: Duration,
+    ) -> Result<(), Box<dyn Error>> {
+        let body = TimetrackRequest {
+            creator: employee_id,
+            employee: employee_id,
+            project: project_id,
+            date,
+            minutes: time.num_minutes() as u16,
+        }
+        .serialize(serde_json::value::Serializer)?
+        .to_string();
+
+        let response: reqwest::blocking::Response = self.client.post("https://api-blank.floq.no/time_entry")
+            .body(body)
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", ))
+            .send()?;
+
+        response.error_for_status()?;
+
+        Ok(())
+    }
+}
