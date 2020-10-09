@@ -16,11 +16,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/install@v0.1
-      with:
-        crate: clippy
-        version: latest
-        use-tool-cache: true
+    - run: rustup component add clippy
     - name: Lint
       run: cargo clippy -- -D warnings 
     - name: Build
