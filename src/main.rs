@@ -1,8 +1,7 @@
-use clap::{App, AppSettings, Arg};
-use http_client::timetrack::HTTPClient;
 use serde::Deserialize;
 use std::env;
 use dotenv::dotenv;
+use clap::{App, AppSettings, Arg};
 
 #[derive(Deserialize, Debug)]
 struct IP {
