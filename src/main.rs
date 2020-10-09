@@ -9,11 +9,7 @@ struct IP {
     origin: String
 }
 fn get_envvar(key: &str) -> String {
-    let envvar = env::var(key);
-    if envvar.is_err() {
-        panic!("env var {} not defined", key)
-    }
-    return envvar.unwrap()
+    env::var(key).expect(format!("env var {} not defined", key).as_str())
 }
 
 fn setup() -> Result<(), Box<dyn std::error::Error>> {
