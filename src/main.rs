@@ -1,24 +1,9 @@
-use serde::Deserialize;
+mod http_client;
+
+use http_client::HTTPClient;
 use std::env;
 use dotenv::dotenv;
 use clap::{App, AppSettings, Arg};
-
-#[derive(Deserialize, Debug)]
-struct IP {
-    origin: String
-}
-fn get_envvar(key: &str) -> String {
-    env::var(key).expect(format!("env var {} not defined", key).as_str())
-}
-
-fn setup() -> Result<(), Box<dyn std::error::Error>> {
-    dotenv().ok();
-    let bearer_token = get_envvar("BEARER_TOKEN");
-    let http_client = HTTPClient::new(bearer_token);
-    let projects = http_client.get_current_week_timetracks(77)?;
-    println!("{:#?}", projects);
-    Ok(())
-}
 
 fn main() {
     let matches = App::new("timetracker")
@@ -65,7 +50,7 @@ fn main() {
             let project_code = track_matches.value_of("project").unwrap();
             let hours = track_matches.values_of("hours").unwrap().collect::<Vec<_>>().join(", ");
 
-            println!("Test {} {}", project_code, hours)
+            println!("Test {} {}", project_code, hours);
         }
 
         Some((_, _)) => unreachable!("Unknown commands should be handled by the library"),
@@ -73,6 +58,17 @@ fn main() {
     }
 }
 
+
+
 fn get_env_var(key: &str) -> String {
     env::var(key).unwrap_or_else(|_| panic!("env var {} not defined", key))
+}
+
+async fn setup() -> Result<(), Box<dyn std::error::Error>> {
+    dotenv()?;
+    let bearer_token = get_env_var("BEARER_TOKEN");
+    let http_client = HTTPClient::new(bearer_token);
+    let projects = http_client.get_current_week_timetracking(77).await?;
+    println!("{:#?}", projects);
+    Ok(())
 }
