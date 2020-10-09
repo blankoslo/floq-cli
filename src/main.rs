@@ -21,17 +21,10 @@ fn main() {
         )
         .subcommand(
             App::new("track")
-                .about("Track worked hours for projects")
+                .about("Track worked hours for a project")
                 .setting(AppSettings::ArgRequiredElseHelp)
-                .arg(
-                    Arg::new("hours")
-                        .short('h')
-                        .long("hours")
-                        .about("Number of hours to track")
-                        .takes_value(true)
-                        .multiple(true),
-                ),
-        )
+                .arg(Arg::new("project").about("the config file to use").index(1))
+                .arg(Arg::new("hours").about("the asd file to use").index(2).takes_value(true).multiple(true)))
         .get_matches();
 
     match matches.subcommand() {
@@ -40,25 +33,21 @@ fn main() {
             println!("Cloning {}", all);
 
             if all {
-                println!("get_projects is not implemented yet...")
-            } else {
                 println!("get_all_projects is not implemented yet...")
+            } else {
+                println!("get_projects is not implemented yet...")
             }
         }
         Some(("history", _)) => {
             println!("History is not implemented yet...")
         }
         Some(("track", track_matches)) => {
-            // Now we have a reference to add's matches
-            println!(
-                "Tracking {}",
-                track_matches
-                    .values_of("stuff")
-                    .unwrap()
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            );
+            let project_code = track_matches.value_of("project").unwrap();
+            let hours = track_matches.values_of("hours").unwrap().collect::<Vec<_>>().join(", ");
+
+            println!("Test {} {}", project_code, hours)
         }
+
         Some((_, _)) => unreachable!("Unknown commands should be handled by the library"),
         None => println!("No subcommand was used"), // If all subcommands are defined above, anything else is unreachable!()
     }
