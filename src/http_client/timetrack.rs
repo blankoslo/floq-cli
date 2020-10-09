@@ -38,13 +38,15 @@ impl Response {
 }
 
 pub struct HTTPClient {
-    client: Client
+    client: Client,
+    bearer_token: String
 }
 
 impl HTTPClient {
-    pub fn new() -> Self {
+    pub fn new(bearer_token: String) -> Self {
         Self {
-            client: Client::new()
+            client: Client::new(),
+            bearer_token
         }
     }
 
@@ -83,7 +85,7 @@ impl HTTPClient {
             .body(body)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
-            .header("Authorization", format!("Bearer {}", "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiZW1wbG95ZWUiLCJlbWFpbCI6InRyb25kLm95ZG5hQGJsYW5rLm5vIiwiaWF0IjoxNTk5NTYzOTkxLCJleHAiOjE2MDAxNjg3OTF9.rjdN1vvCpo0s9KkLJW3aySh8921VzT63czRrprE7JdA"))
+            .header("Authorization", format!("Bearer {}", self.bearer_token))
             .send()?;
 
         let response: Vec<Response> = response.json()?;
