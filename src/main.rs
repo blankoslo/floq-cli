@@ -28,14 +28,21 @@ fn main() {
             App::new("track")
                 .about("Track worked hours for a project")
                 .setting(AppSettings::ArgRequiredElseHelp)
-                .arg(Arg::new("project").about("the config file to use").index(1))
-                .arg(Arg::new("hours").about("the asd file to use").index(2).takes_value(true).multiple(true)))
+                .arg(
+                    Arg::new("project")
+                        .about("the project to track")
+                        .index(1))
+                .arg(
+                    Arg::new("hours")
+                        .about("the number of hours to track")
+                        .index(2)
+                        .takes_value(true)
+                        .multiple(true)))
         .get_matches();
 
     match matches.subcommand() {
         Some(("projects", projects_matches)) => {
             let all = projects_matches.is_present("all");
-            println!("Cloning {}", all);
 
             if all {
                 println!("get_all_projects is not implemented yet...")
@@ -57,7 +64,6 @@ fn main() {
         None => println!("No subcommand was used"), // If all subcommands are defined above, anything else is unreachable!()
     }
 }
-
 
 
 fn get_env_var(key: &str) -> String {
