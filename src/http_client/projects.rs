@@ -3,8 +3,8 @@ use std::time::SystemTime;
 
 use super::HTTPClient;
 
-use chrono::{DateTime, Datelike, Duration, Utc};
-use serde::Deserialize;
+use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
+use serde::{Deserialize, Serialize};
 use surf::Response;
 
 #[derive(Deserialize, Debug)]
@@ -34,30 +34,79 @@ impl HTTPClient {
 
         Ok(projects)
     }
+}
 
+#[derive(Serialize, Debug)]
+struct ProjectsForEmployeeRequest {
+    employee_id: u32,
+    date_range: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct ProjectForEmployeeResponse {
+    id: String,
+    name: String,
+    active: bool,
+    customer_id: String,
+    customer_name: String,
+}
+
+impl ProjectForEmployeeResponse {
+    fn into_project(self) -> Project {
+        Project {
+            id: self.id,
+            name: self.name,
+            active: self.active,
+            customer: Customer {
+                id: self.customer_id,
+                name: self.customer_name,
+            },
+        }
+    }
+}
+
+impl HTTPClient {
     pub async fn get_current_timetracked_projects_for_employee(
         &self,
         employee_id: u32,
     ) -> Result<Vec<Project>, Box<dyn Error>> {
         let now: DateTime<Utc> = DateTime::from(SystemTime::now());
         let today = now.date();
-        let days_from_monday = today.weekday().num_days_from_monday();
 
-        let sunday = today.naive_local() + Duration::days(1) * days_from_monday as i32;
+        self.get_timetracked_projects_for_employee(employee_id, today.naive_local())
+            .await
+    }
 
-        let timetrackings = self.get_timetracking_for_day(employee_id, sunday).await?;
+    pub async fn get_timetracked_projects_for_employee(
+        &self,
+        employee_id: u32,
+        date: NaiveDate,
+    ) -> Result<Vec<Project>, Box<dyn Error>> {
+        let lower = date - Duration::weeks(2);
+        let upper = date + Duration::days(1) * (6 - date.weekday().num_days_from_monday() as i32); // sunday of the same week as date
 
-        Ok(timetrackings
-            .into_iter()
-            .map(|t| Project {
-                id: t.id,
-                name: t.project,
-                customer: Customer {
-                    id: t.customer.clone(),
-                    name: format!("Customer {}", t.customer),
-                },
-                active: true,
-            })
-            .collect())
+        let body = ProjectsForEmployeeRequest {
+            employee_id,
+            date_range: format!(
+                "({}, {})",
+                lower.format("%Y-%m-%d"),
+                upper.format("%Y-%m-%d")
+            ),
+        }
+        .serialize(serde_json::value::Serializer)?
+        .to_string();
+
+        let mut response: Response =
+            surf::post("https://api-blank.floq.no/rpc/projects_info_for_employee_in_period")
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .header("Authorization", format!("Bearer {}", self.bearer_token))
+                .body(body)
+                .send()
+                .await?;
+
+        let projects: Vec<ProjectForEmployeeResponse> = response.body_json().await?;
+
+        Ok(projects.into_iter().map(|r| r.into_project()).collect())
     }
 }

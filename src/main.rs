@@ -68,15 +68,12 @@ fn main() {
     }
 }
 
-
 async fn setup() -> Result<(), Box<dyn std::error::Error>> {
     dotenv()?;
     let bearer_token = get_env_var("BEARER_TOKEN");
     let http_client = HTTPClient::new(bearer_token);
     let employee_id = get_env_var("EMPLOYEE_ID").parse()?;
-    let projects = http_client.get_current_week_timetracking(77).await?;
-    println!("{:#?}", projects);
-    async_std::task::block_on(demo(http_client, employee_id))?;
+    demo(http_client, employee_id).await?;
     Ok(())
 }
 
@@ -84,6 +81,11 @@ async fn demo(http_client: HTTPClient, employee_id: u32) -> Result<(), Box<dyn s
     let projects = http_client.get_projects().await?;
     println!("Projects:");
     println!("{:#?}", projects);
+
+    let relevant_projects = http_client.get_current_timetracked_projects_for_employee(employee_id).await?;
+    println!();
+    println!("Relevant projects:");
+    println!("{:#?}", relevant_projects);
 
     let current_week_timetrackings = http_client.get_current_week_timetracking(employee_id).await?;
     println!();
