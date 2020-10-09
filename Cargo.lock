@@ -2,6 +2,7 @@
 # It is not intended for manual editing.
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 name = "aead"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -192,6 +193,8 @@ checksum = "065374052e7df7ee4047b1160cca5e1467a12351a40b3da123c870ba0b8eda2a"
 
 [[package]]
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "arc-swap"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -209,13 +212,17 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "autocfg"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "base-x"
 version = "0.2.6"
@@ -225,12 +232,15 @@ checksum = "1b20b618342cf9891c292c4f5ac2cde7287cc5c87e87e9c769d617793607dec1"
 [[package]]
 =======
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "base64"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3441f0f7b02788e948e47f457ca01f1d7e6d92c693bc132c22b087d3141c03ff"
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "block-buffer"
 version = "0.9.0"
@@ -263,11 +273,16 @@ dependencies = [
  "once_cell",
 ]
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "bumpalo"
@@ -277,6 +292,7 @@ checksum = "2e8c087f005730276d1096a652e92a8bacee2e2472bcc9715a74d2bec38b5820"
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 name = "byteorder"
 version = "1.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -285,12 +301,15 @@ checksum = "08c48aae112d48ed9f069b33538ea9e3e90aa263cfa3d1c24309612b1f7472de"
 [[package]]
 =======
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "bytes"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "cache-padded"
 version = "1.1.1"
@@ -300,6 +319,8 @@ checksum = "631ae5198c9be5e753e5cc215e1bd73c2b466a3565173db433f52bb9d3e66dba"
 [[package]]
 =======
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "cc"
 version = "1.0.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -312,6 +333,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
+<<<<<<< HEAD
 name = "chrono"
 version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -437,6 +459,8 @@ checksum = "d4d0e2d24e5ee3b23a01de38eefdcd978907890701f08ffffd4cb457ca4ee8d6"
 ]
 
 [[package]]
+=======
+>>>>>>> a80cf90... Add track-command
 name = "clap"
 version = "3.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -483,6 +507,7 @@ name = "core-foundation-sys"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3a71ab494c0b5b860bdc8407ae08978052417070c2ced38573a9157ad75b8ac"
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
 
 [[package]]
@@ -524,13 +549,20 @@ checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 [[package]]
 <<<<<<< HEAD
 =======
+=======
+
+[[package]]
+>>>>>>> a80cf90... Add track-command
 name = "dtoa"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "134951f4028bdadb9b84baf4232681efbf277da25144b9b0ad65df75946c422b"
 
 [[package]]
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "encoding_rs"
 version = "0.8.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -540,6 +572,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "event-listener"
 version = "2.5.1"
@@ -580,6 +613,15 @@ dependencies = [
  "serde_json",
  "tokio",
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+name = "floq-timetracker-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "reqwest",
+ "serde",
+ "tokio",
+>>>>>>> a80cf90... Add track-command
 ]
 
 [[package]]
@@ -589,6 +631,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "form_urlencoded"
 version = "1.0.0"
@@ -674,6 +717,8 @@ dependencies = [
  "syn",
 ]
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "foreign-types"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -724,7 +769,10 @@ name = "futures-io"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5fc94b64bb39543b4e432f1790b6bf18e3ee3b74653c5449f63310e9a74b123c"
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "futures-sink"
@@ -748,6 +796,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a894a0acddba51a2d49a6f4263b1e64b8c579ece8af50fa86503d52cd1eea34"
 dependencies = [
 <<<<<<< HEAD
+<<<<<<< HEAD
  "futures-channel",
  "futures-core",
  "futures-io",
@@ -757,19 +806,27 @@ dependencies = [
  "futures-core",
  "futures-io",
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+ "futures-core",
+ "futures-io",
+>>>>>>> a80cf90... Add track-command
  "futures-task",
  "memchr",
  "pin-project",
  "pin-utils",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "proc-macro-hack",
  "proc-macro-nested",
 =======
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
  "slab",
 ]
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "generic-array"
 version = "0.14.4"
@@ -783,6 +840,8 @@ dependencies = [
 [[package]]
 =======
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "getrandom"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -790,6 +849,7 @@ checksum = "fc587bc0ec293155d5bfa6b9891ec18a1e330c234f896ea47fbada4cadbe47e6"
 dependencies = [
  "cfg-if",
  "libc",
+<<<<<<< HEAD
  "wasi 0.9.0+wasi-snapshot-preview1",
 ]
 
@@ -815,6 +875,12 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
 =======
+=======
+ "wasi",
+]
+
+[[package]]
+>>>>>>> a80cf90... Add track-command
 name = "h2"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -846,7 +912,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20564e78d53d2bb135c343b3f47714a56af2061f1c928fdb541dc7b9fdd94205"
 dependencies = [
  "unicode-segmentation",
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 ]
 
 [[package]]
@@ -859,6 +928,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "hkdf"
 version = "0.9.0"
@@ -921,6 +991,8 @@ dependencies = [
  "serde_urlencoded",
  "url",
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "http"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -988,7 +1060,10 @@ dependencies = [
  "native-tls",
  "tokio",
  "tokio-tls",
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 ]
 
 [[package]]
@@ -1003,6 +1078,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "infer"
 version = "0.2.3"
@@ -1041,6 +1117,8 @@ dependencies = [
  "tracing-futures",
 ]
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "indexmap"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1064,7 +1142,10 @@ name = "ipnet"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47be2f14c678be2fdcab04ab1171db51b2762ce6f0a8ee87c8dd4a04ed216135"
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "itoa"
@@ -1083,6 +1164,7 @@ dependencies = [
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 name = "kv-log-macro"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1090,6 +1172,8 @@ checksum = "0de8b303297635ad57c9f5059fd9cee7a47f8e8daa09df0fcd07dd39fb22977f"
 dependencies = [
  "log",
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "kernel32-sys"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1097,7 +1181,10 @@ checksum = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
 dependencies = [
  "winapi 0.2.8",
  "winapi-build",
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 ]
 
 [[package]]
@@ -1113,6 +1200,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2448f6066e80e3bfc792e9c98bf705b4b0fc6e8ef5b43e5889aff0eaa9c58743"
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "libnghttp2-sys"
 version = "0.1.4+1.41.0"
@@ -1138,6 +1226,8 @@ dependencies = [
 [[package]]
 =======
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "log"
 version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1154,6 +1244,7 @@ checksum = "7ffc5c5338469d4d3ea17d269fa8ea3512ad247247c30bd2df69e68309ed0a08"
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 name = "maybe-uninit"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1162,6 +1253,8 @@ checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
 [[package]]
 =======
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "memchr"
 version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1185,6 +1278,7 @@ dependencies = [
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 name = "nb-connect"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1193,6 +1287,8 @@ dependencies = [
  "libc",
  "winapi",
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "mio"
 version = "0.6.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1270,6 +1366,7 @@ dependencies = [
  "openssl-sys",
  "schannel",
  "security-framework",
+<<<<<<< HEAD
  "security-framework-sys",
  "tempfile",
 ]
@@ -1303,6 +1400,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac267bcc07f48ee5f8935ab0d24f316fb722d7a1292e2913f0cc196b29ffd611"
 dependencies = [
  "autocfg",
+=======
+ "security-framework-sys",
+ "tempfile",
+]
+
+[[package]]
+name = "net2"
+version = "0.2.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ebc3ec692ed7c9a255596c67808dee269f64655d8baf7b4f0638e51ba1d6853"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "winapi 0.3.9",
+>>>>>>> a80cf90... Add track-command
 ]
 
 [[package]]
@@ -1323,6 +1435,7 @@ checksum = "260e51e7efe62b592207e9e13a68e43692a7a279171d6ba57abd208bf23645ad"
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 name = "opaque-debug"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1334,6 +1447,8 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "openssl"
 version = "0.10.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1346,7 +1461,10 @@ dependencies = [
  "libc",
  "openssl-sys",
 ]
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "openssl-probe"
@@ -1369,16 +1487,22 @@ dependencies = [
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 name = "parking"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "427c3892f9e783d91cc128285287e70a59e206ca452770ece88a76f7a3eddd72"
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "os_str_bytes"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ac6fe3538f701e339953a3ebbe4f39941aababa8a3f6964635b24ab526daeac"
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "percent-encoding"
@@ -1426,6 +1550,7 @@ checksum = "d36492546b6af1463394d46f0c834346f31548646f6ba10849802c9c9a27ac33"
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 name = "polling"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1451,12 +1576,15 @@ dependencies = [
 [[package]]
 =======
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "ppv-lite86"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c36fa947111f5c62a733b652544dd0016a43ce89619538a8ef92724a6f501a20"
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "proc-macro-hack"
 version = "0.5.18"
@@ -1469,6 +1597,8 @@ version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eba180dafb9038b050a4c280019bbedf9f2467b61e5d892dcad585bb57aadc5a"
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "proc-macro-error"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1491,7 +1621,10 @@ dependencies = [
  "quote",
  "version_check",
 ]
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "proc-macro2"
@@ -1559,6 +1692,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41cc0f7e4d5d4544e8861606a285bb08d3e70712ccc7d2b84d7c0ccfaf4b05ce"
 
 [[package]]
+<<<<<<< HEAD
 name = "regex"
 version = "1.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1585,6 +1719,8 @@ checksum = "138e3e0acb6c9fb258b19b67cb8abd63c00679d2851805ea151465464fe9030a"
 dependencies = [
  "semver",
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "remove_dir_all"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1627,7 +1763,10 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "winreg",
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 ]
 
 [[package]]
@@ -1643,6 +1782,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f05ba609c234e60bee0d547fe94a4c7e9da733d1c962cf6e59efa4cd9c8bc75"
 dependencies = [
  "lazy_static",
+<<<<<<< HEAD
 <<<<<<< HEAD
  "winapi",
 ]
@@ -1662,6 +1802,8 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 =======
+=======
+>>>>>>> a80cf90... Add track-command
  "winapi 0.3.9",
 ]
 
@@ -1687,7 +1829,10 @@ dependencies = [
  "core-foundation-sys",
  "libc",
 ]
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "serde"
@@ -1721,6 +1866,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "serde_qs"
 version = "0.7.0"
@@ -1763,6 +1909,8 @@ dependencies = [
  "digest",
  "opaque-debug 0.3.0",
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "serde_urlencoded"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1782,7 +1930,10 @@ checksum = "a3e12110bc539e657a646068aaf5eb5b63af9d0c1f7b29c97113fad80e15f035"
 dependencies = [
  "arc-swap",
  "libc",
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 ]
 
 [[package]]
@@ -1792,6 +1943,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "sluice"
 version = "0.5.2"
@@ -1807,6 +1959,8 @@ dependencies = [
 [[package]]
 =======
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "socket2"
 version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1815,6 +1969,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "redox_syscall",
+<<<<<<< HEAD
 <<<<<<< HEAD
  "winapi",
 ]
@@ -1879,10 +2034,13 @@ checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
 
 [[package]]
 =======
+=======
+>>>>>>> a80cf90... Add track-command
  "winapi 0.3.9",
 ]
 
 [[package]]
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
 name = "stfu8"
 version = "0.2.4"
@@ -1922,11 +2080,16 @@ dependencies = [
  "web-sys",
 ]
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "syn"
@@ -1940,6 +2103,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "thiserror"
 version = "1.0.21"
@@ -1959,6 +2123,8 @@ dependencies = [
  "quote",
  "syn",
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "tempfile"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1988,6 +2154,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "203008d98caf094106cfaba70acfed15e18ed3ddb7d94e49baec153a2b462789"
 dependencies = [
  "unicode-width",
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
 ]
 
@@ -2057,6 +2224,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "238ce071d267c5710f9d31451efec16c5ee22de34df17cc05e56cbc92e967117"
 =======
  "winapi 0.3.9",
+=======
+>>>>>>> a80cf90... Add track-command
 ]
 
 [[package]]
@@ -2129,7 +2298,10 @@ name = "tower-service"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e987b6bf443f4b5b3b6f38704195592cca41c5bb7aedd3c3693c7081f8289860"
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "tracing"
@@ -2141,13 +2313,17 @@ dependencies = [
  "log",
  "pin-project-lite",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "tracing-attributes",
 =======
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
  "tracing-core",
 ]
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "tracing-attributes"
 version = "0.1.11"
@@ -2162,6 +2338,8 @@ dependencies = [
 [[package]]
 =======
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "tracing-core"
 version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2171,6 +2349,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 <<<<<<< HEAD
 name = "tracing-futures"
 version = "0.2.4"
@@ -2187,11 +2366,16 @@ version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "373c8a200f9e67a0c95e62a4f52fbf80c23b4381c05a17845531982fa99e6b33"
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "try-lock"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "unicase"
@@ -2228,6 +2412,7 @@ checksum = "e83e153d1053cbb5a118eeff7fd5be06ed99153f00dbcd8ae310c5fb2b22edc0"
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 name = "unicode-xid"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2243,6 +2428,8 @@ dependencies = [
  "subtle",
 ]
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "unicode-width"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2253,7 +2440,10 @@ name = "unicode-xid"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7fe0bb3479651439c9112f72b6c505038574c9fbb575ed1bf3b797fa39dd564"
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "url"
@@ -2265,9 +2455,12 @@ dependencies = [
  "matches",
  "percent-encoding",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "serde",
 =======
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 ]
 
 [[package]]
@@ -2278,16 +2471,22 @@ checksum = "6454029bf181f092ad1b853286f23e2c507d8e8194d01d92da4a55c274a5508c"
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 name = "vec-arena"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eafc1b9b2dfc6f5529177b62cf806484db55b32dc7c9658a118e11bbeb33061d"
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "version_check"
@@ -2296,6 +2495,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
 
 [[package]]
+<<<<<<< HEAD
 name = "voca_rs"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2313,6 +2513,8 @@ version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d5b2c62b4012a3e1eca5a7e077d13b3bf498c4073e33ccd58626607748ceeca"
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "want"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2321,7 +2523,10 @@ dependencies = [
  "log",
  "try-lock",
 ]
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "wasi"
@@ -2330,12 +2535,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
 
 [[package]]
+<<<<<<< HEAD
 name = "wasi"
 version = "0.10.0+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a143597ca7c7793eff794def352d41792a93c481eb1042423ff7ff72ba2c31f"
 
 [[package]]
+=======
+>>>>>>> a80cf90... Add track-command
 name = "wasm-bindgen"
 version = "0.2.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2343,10 +2551,15 @@ checksum = "1ac64ead5ea5f05873d7c12b545865ca2b8d28adfc50a49b84770a3a97265d42"
 dependencies = [
  "cfg-if",
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
  "serde",
  "serde_json",
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+ "serde",
+ "serde_json",
+>>>>>>> a80cf90... Add track-command
  "wasm-bindgen-macro",
 ]
 
@@ -2418,6 +2631,7 @@ dependencies = [
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 name = "wepoll-sys"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2426,11 +2640,16 @@ dependencies = [
  "cc",
 ]
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "winapi"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "167dc9d6949a9b857f3451275e911c3f44255842c1f7a76f33c55103a909087a"
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "winapi"
@@ -2444,14 +2663,20 @@ dependencies = [
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "winapi-build"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d315eee3b34aca4797b2da6b13ed88266e6d612562a0c46390af8299fc699bc"
 
 [[package]]
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "winapi-i686-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2459,7 +2684,10 @@ checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
 
 [[package]]
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 name = "winapi-util"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2469,13 +2697,19 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
 name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> a80cf90... Add track-command
 
 [[package]]
 name = "winreg"
@@ -2495,4 +2729,7 @@ dependencies = [
  "winapi 0.2.8",
  "winapi-build",
 ]
+<<<<<<< HEAD
 >>>>>>> b571d44... Add initial Clap skeleton
+=======
+>>>>>>> a80cf90... Add track-command
