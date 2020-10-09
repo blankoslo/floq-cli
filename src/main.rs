@@ -1,5 +1,7 @@
 mod http_client;
 
+use chrono::{Duration, NaiveDate};
+
 use http_client::HTTPClient;
 use std::env;
 use dotenv::dotenv;
@@ -45,9 +47,10 @@ fn main() {
             let all = projects_matches.is_present("all");
 
             if all {
-                println!("get_all_projects is not implemented yet...")
+                println!("get_all_projects is not implemented yet...");
+                async_std::task::block_on(setup()).expect("Done");
             } else {
-                println!("get_projects is not implemented yet...")
+                println!("get_projects is not implemented yet...");
             }
         }
         Some(("history", _)) => {
@@ -66,15 +69,40 @@ fn main() {
 }
 
 
-fn get_env_var(key: &str) -> String {
-    env::var(key).unwrap_or_else(|_| panic!("env var {} not defined", key))
-}
-
 async fn setup() -> Result<(), Box<dyn std::error::Error>> {
     dotenv()?;
     let bearer_token = get_env_var("BEARER_TOKEN");
     let http_client = HTTPClient::new(bearer_token);
+    let employee_id = get_env_var("EMPLOYEE_ID").parse()?;
     let projects = http_client.get_current_week_timetracking(77).await?;
     println!("{:#?}", projects);
+    async_std::task::block_on(demo(http_client, employee_id))?;
     Ok(())
+}
+
+async fn demo(http_client: HTTPClient, employee_id: u32) -> Result<(), Box<dyn std::error::Error>> {
+    let projects = http_client.get_projects().await?;
+    println!("Projects:");
+    println!("{:#?}", projects);
+
+    let current_week_timetrackings = http_client.get_current_week_timetracking(employee_id).await?;
+    println!();
+    println!("Current week timetracking:");
+    println!("{:#?}", current_week_timetrackings);
+
+    http_client
+        .timetrack(
+            77,
+            "SVO1000".to_string(),
+            NaiveDate::from_ymd(2020, 10, 9),
+            Duration::hours(7) + Duration::minutes(30),
+        )
+        .await?;
+
+    println!("Done timetracking!");
+    Ok(())
+}
+
+fn get_env_var(key: &str) -> String {
+    env::var(key).unwrap_or_else(|_| panic!("env var {} not defined", key))
 }
