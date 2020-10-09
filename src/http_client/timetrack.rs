@@ -10,11 +10,11 @@ use surf::Response;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Timetrack {
-    id: String,
-    project: String,
-    customer: String,
-    date: NaiveDate,
-    time: Duration,
+    pub id: String,
+    pub project: String,
+    pub customer: String,
+    pub date: NaiveDate,
+    pub time: Duration,
 }
 
 #[derive(Serialize, Debug)]
