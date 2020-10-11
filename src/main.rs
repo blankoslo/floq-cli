@@ -1,3 +1,4 @@
+mod auth;
 mod http_client;
 
 use chrono::{Duration, NaiveDate};
@@ -8,6 +9,8 @@ use dotenv::dotenv;
 use clap::{App, AppSettings, Arg};
 
 fn main() {
+    async_std::task::block_on(auth::authorize());
+
     let matches = App::new("timetracker")
         .about("Timetracking in the terminal")
         .version("1.0")
