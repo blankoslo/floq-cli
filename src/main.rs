@@ -1,12 +1,12 @@
+mod floqtt_tui;
 mod http_client;
-
 use chrono::{Duration, NaiveDate};
 
 use clap::{App, AppSettings, Arg};
 use dotenv::dotenv;
+use floqtt_tui::FloqTTTUI;
 use http_client::HTTPClient;
 use std::env;
-
 fn main() {
     let matches = App::new("timetracker")
         .about("Timetracking in the terminal")
@@ -71,7 +71,13 @@ async fn setup() -> Result<(), Box<dyn std::error::Error>> {
     let bearer_token = get_env_var("BEARER_TOKEN");
     let http_client = HTTPClient::new(bearer_token);
     let employee_id = get_env_var("EMPLOYEE_ID").parse()?;
-    demo(http_client, employee_id).await?;
+    let time_trackings = http_client
+        .get_current_week_timetracking(employee_id)
+        .await?;
+
+    let mut tui = FloqTTTUI::new(time_trackings);
+    tui.start();
+    //   demo(http_client, employee_id).await?;
     Ok(())
 }
 
