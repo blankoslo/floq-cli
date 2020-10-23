@@ -9,16 +9,16 @@ use surf::Response;
 
 #[derive(Deserialize, Debug)]
 pub struct Project {
-    id: String,
-    name: String,
+    pub(crate) id: String,
+    pub(crate) name: String,
     active: bool,
-    customer: Customer,
+    pub(crate) customer: Customer,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Customer {
-    id: String,
-    name: String,
+    pub(crate) id: String,
+    pub(crate) name: String,
 }
 
 impl HTTPClient {
