@@ -7,8 +7,6 @@ use dotenv::dotenv;
 use floqtt_tui::FloqTTTUI;
 use http_client::HTTPClient;
 use std::env;
-use dotenv::dotenv;
-use clap::{App, AppSettings, Arg};
 
 fn main() {
     let matches = App::new("timetracker")
@@ -73,18 +71,7 @@ fn new_client() -> HTTPClient {
     dotenv().unwrap();
     let bearer_token = get_env_var("BEARER_TOKEN");
     let employee_id = get_env_var("EMPLOYEE_ID").parse().unwrap();
-
     HTTPClient::new(bearer_token, employee_id)
-    let http_client = HTTPClient::new(bearer_token);
-    let employee_id = get_env_var("EMPLOYEE_ID").parse()?;
-    let time_trackings = http_client
-        .get_current_week_timetracking(employee_id)
-        .await?;
-
-    let mut tui = FloqTTTUI::new(time_trackings);
-    tui.start();
-    //   demo(http_client, employee_id).await?;
-    Ok(())
 }
 
 async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>> {
@@ -111,7 +98,12 @@ async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>>
             Duration::hours(7) + Duration::minutes(30),
         )
         .await?;
+    let time_trackings = http_client
+        .get_current_week_timetracking()
+        .await?;
 
+    let mut tui = FloqTTTUI::new(time_trackings);
+    tui.start();
     println!("Done timetracking!");
     Ok(())
 }
