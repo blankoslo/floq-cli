@@ -44,10 +44,7 @@ impl TimetrackedProjectsResponse {
 }
 
 impl HTTPClient {
-    pub async fn get_current_week_timetracking(
-        &self,
-        employee_id: u32,
-    ) -> Result<Vec<Timetrack>, Box<dyn Error>> {
+    pub async fn get_current_week_timetracking(&self) -> Result<Vec<Timetrack>, Box<dyn Error>> {
         let now: DateTime<Utc> = DateTime::from(SystemTime::now());
         let today = now.date();
         let days_from_monday = today.weekday().num_days_from_monday();
@@ -55,13 +52,13 @@ impl HTTPClient {
         let monday = today.naive_local() - Duration::days(1) * days_from_monday as i32;
 
         let results = join!(
-            self.get_timetracking_for_day(employee_id, monday),
-            self.get_timetracking_for_day(employee_id, monday + Duration::days(1)),
-            self.get_timetracking_for_day(employee_id, monday + Duration::days(2)),
-            self.get_timetracking_for_day(employee_id, monday + Duration::days(3)),
-            self.get_timetracking_for_day(employee_id, monday + Duration::days(4)),
-            self.get_timetracking_for_day(employee_id, monday + Duration::days(5)),
-            self.get_timetracking_for_day(employee_id, monday + Duration::days(6)),
+            self.get_timetracking_for_day(monday),
+            self.get_timetracking_for_day(monday + Duration::days(1)),
+            self.get_timetracking_for_day(monday + Duration::days(2)),
+            self.get_timetracking_for_day(monday + Duration::days(3)),
+            self.get_timetracking_for_day(monday + Duration::days(4)),
+            self.get_timetracking_for_day(monday + Duration::days(5)),
+            self.get_timetracking_for_day(monday + Duration::days(6)),
         );
         let timetrackings: Vec<Vec<Timetrack>> = vec![
             results.0?, results.1?, results.2?, results.3?, results.4?, results.5?, results.6?,
@@ -72,12 +69,14 @@ impl HTTPClient {
 
     pub async fn get_timetracking_for_day(
         &self,
-        employee_id: u32,
         date: NaiveDate,
     ) -> Result<Vec<Timetrack>, Box<dyn std::error::Error>> {
-        let body = TimetrackedProjectsRequest { employee_id, date }
-            .serialize(serde_json::value::Serializer)?
-            .to_string();
+        let body = TimetrackedProjectsRequest {
+            employee_id: self.employee_id,
+            date,
+        }
+        .serialize(serde_json::value::Serializer)?
+        .to_string();
 
         let mut response: Response =
             surf::post("https://api-blank.floq.no/rpc/projects_for_employee_for_date")
@@ -110,14 +109,13 @@ struct TimetrackRequest {
 impl HTTPClient {
     pub async fn timetrack(
         &self,
-        employee_id: u32,
         project_id: String,
         date: NaiveDate,
         time: Duration,
     ) -> Result<(), Box<dyn Error>> {
         let body = TimetrackRequest {
-            creator: employee_id,
-            employee: employee_id,
+            creator: self.employee_id,
+            employee: self.employee_id,
             project: project_id,
             date,
             minutes: time.num_minutes() as u16,
