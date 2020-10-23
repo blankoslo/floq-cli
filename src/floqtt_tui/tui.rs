@@ -16,6 +16,7 @@ use tui::Terminal;
 pub struct FloqTTTUI {
     state: ApplicationState,
     terminal: Terminal<CrosstermBackend<Stdout>>,
+    text_mode: bool
 }
 
 impl FloqTTTUI {
@@ -31,52 +32,77 @@ impl FloqTTTUI {
         Self {
             state,
             terminal,
+            text_mode: true
         }
     }
+
+    pub fn text_mode_event_handler(&mut self, event: Event<Key>) -> bool {
+        match event {
+            Event::Input(key) => match key {
+                Key::Esc => {
+                    self.text_mode = false;
+                }
+                Key::Char(input) => self.state.input_write(input),
+                Key::Backspace => {
+                    self.state.input_remove_previous();
+                }
+                Key::Left => self.state.move_cursor_back(),
+                Key::Right => self.state.move_cursor_forward(),
+                Key::Enter => {
+                    if self.state.input == "quit" || self.state.input == "q" {
+                        return false;
+                    }
+                    self.state.enter()
+                },
+                Key::Up => self.state.previous_cmd(),
+                _ => {}
+            },
+
+            Event::Tick => {
+                self.draw_tui().expect("Error drawing");
+            }
+        }
+        true
+    }
+
+    pub fn tui_mode_event_handler(&mut self, event: Event<Key>) -> bool {
+        match event {
+            Event::Input(key) => match key {
+                Key::Tab => {
+                }
+                Key::Char(':') => {
+                    self.text_mode = true;
+                }
+                Key::Esc => {
+                    return false
+                }
+                _ => {}
+            },
+
+            Event::Tick => {
+                self.draw_tui().expect("Error drawing");
+            }
+        }
+        return true
+    }
+
 
     pub fn start(&mut self) -> Result<(), RecvError> {
         let events = Events::new(250);
         loop {
-            match events.next()? {
-                Event::Input(key) => match key {
-                    Key::Ctrl('c') => {
-                        self.terminal.clear();
-                        disable_raw_mode().expect("disabling raw mode failed");
-                        panic!("shutdown")
-                    }
-                    Key::Ctrl('d') => {
-                        self.terminal.clear();
-                        disable_raw_mode().expect("disabling raw mode failed");
-                        panic!("shutdown")
-                    }
-
-                    Key::Tab => {
-
-                    }
-
-                    Key::Char(input) => self.state.input_write(input),
-                    Key::Backspace => {
-                        self.state.input_remove_previous();
-                    }
-                    Key::Left => self.state.move_cursor_back(),
-                    Key::Right => self.state.move_cursor_forward(),
-                    Key::Enter => {
-                        if self.state.input == "quit" || self.state.input == "q" {
-                           self.terminal.clear();
-                           disable_raw_mode().expect("disabling raw mode failed");
-                           break;
-                        }
-                        self.state.enter()
-                    },
-                    Key::Up => self.state.previous_cmd(),
-                    _ => {}
-                },
-
-                Event::Tick => {
-                    self.draw_tui().expect("Error drawing");
+            let event = events.next()?;
+            if self.text_mode {
+                if !self.text_mode_event_handler(event) {
+                    break
+                }
+            } else {
+                if !self.tui_mode_event_handler(event) {
+                    break
                 }
             }
         }
+        self.terminal.clear();
+        disable_raw_mode().expect("disabling raw mode failed");
         Ok(())
     }
 
@@ -91,6 +117,7 @@ impl FloqTTTUI {
         let today = self.state.current_date;
         let input = &self.state.input;
         let input_cursor = self.state.input_cursor;
+        let text_mode = self.text_mode;
         self.terminal.draw(|f| {
             let window_margin = Margin {
                 vertical: 0,
@@ -236,14 +263,16 @@ impl FloqTTTUI {
                             }
                         })
                 });
-            let input_string = format!(" > {}", input);
-            let input_panel = Paragraph::new(input_string)
-                .block(Block::default())
-                .style(Style::default().fg(PURPLE))
-                .alignment(Alignment::Left);
+            if (text_mode) {
+                let input_string = format!(" > {}", input);
+                let input_panel = Paragraph::new(input_string)
+                    .block(Block::default())
+                    .style(Style::default().fg(PURPLE))
+                    .alignment(Alignment::Left);
 
-            f.set_cursor(chunks[2].x + 3 + input_cursor as u16, chunks[2].y);
-            f.render_widget(input_panel, chunks[2]);
+                f.set_cursor(chunks[2].x + 3 + input_cursor as u16, chunks[2].y);
+                f.render_widget(input_panel, chunks[2]);
+            }
         })
     }
 }
