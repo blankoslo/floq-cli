@@ -14,8 +14,6 @@ use tui::widgets::{Block, Paragraph};
 use tui::Terminal;
 
 pub struct FloqTTTUI {
-    current_date: NaiveDate,
-    time_trackings: Vec<Timetrack>,
     state: ApplicationState,
     terminal: Terminal<CrosstermBackend<Stdout>>,
 }
@@ -28,11 +26,9 @@ impl FloqTTTUI {
             Ok(terminal) => terminal,
             Err(_) => panic!("error creating tui"),
         };
-        let state = ApplicationState::new();
+        let state = ApplicationState::new(time_trackings);
         enable_raw_mode().expect("could not enter raw mode");
         Self {
-            current_date: Utc::now().naive_local().date(),
-            time_trackings,
             state,
             terminal,
         }
@@ -53,6 +49,11 @@ impl FloqTTTUI {
                         disable_raw_mode().expect("disabling raw mode failed");
                         panic!("shutdown")
                     }
+
+                    Key::Tab => {
+
+                    }
+
                     Key::Char(input) => self.state.input_write(input),
                     Key::Backspace => {
                         self.state.input_remove_previous();
@@ -80,15 +81,14 @@ impl FloqTTTUI {
     }
 
     pub fn draw_tui(&mut self) -> Result<(), io::Error> {
-        let antall_timer: f32 = self
-            .time_trackings
+        let time_trackings = &self.state.time_trackings();
+        let antall_timer: f32 = time_trackings
             .iter()
             .map(|day| day.time.num_minutes() as f32 / 60.0)
             .sum();
-        let avspasering_today = &self.current_date.format("%d.%m");
+        let avspasering_today = &self.state.current_date.format("%d.%m");
 
-        let today = self.current_date;
-        let time_trackings = &self.time_trackings;
+        let today = self.state.current_date;
         let input = &self.state.input;
         let input_cursor = self.state.input_cursor;
         self.terminal.draw(|f| {

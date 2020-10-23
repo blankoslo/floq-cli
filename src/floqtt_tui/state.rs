@@ -1,17 +1,24 @@
+use crate::http_client::timetrack::Timetrack;
+use chrono::{NaiveDate, Utc};
+
 pub struct ApplicationState {
     pub input: String,
     pub input_cursor: usize,
     pub stack: Vec<String>,
     stack_cursor: usize,
+    time_trackings: Vec<Timetrack>,
+    pub current_date: NaiveDate
 }
 
 impl ApplicationState {
-    pub fn new() -> Self {
+    pub fn new(time_trackings: Vec<Timetrack>) -> Self {
         ApplicationState {
             input: String::new(),
             input_cursor: 0,
             stack: vec![],
             stack_cursor: 0,
+            time_trackings,
+            current_date: Utc::now().naive_local().date(),
         }
     }
 
@@ -61,5 +68,9 @@ impl ApplicationState {
             self.stack_cursor = 0;
             self.input.clear();
         }
+    }
+
+    pub fn time_trackings(&self) -> &Vec<Timetrack> {
+        &self.time_trackings
     }
 }
