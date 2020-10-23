@@ -43,7 +43,7 @@ fn main() {
             let all = projects_matches.is_present("all");
 
             if all {
-                let client = get_client();
+                let client = new_client();
                 async_std::task::block_on(demo(client)).expect("Done");
             } else {
                 println!("get_projects is not implemented yet...");
@@ -66,7 +66,7 @@ fn main() {
     }
 }
 
-fn get_client() -> HTTPClient {
+fn new_client() -> HTTPClient {
     dotenv().unwrap();
     let bearer_token = get_env_var("BEARER_TOKEN");
     let employee_id = get_env_var("EMPLOYEE_ID").parse().unwrap();
