@@ -67,34 +67,32 @@ impl ProjectForEmployeeResponse {
 
 impl HTTPClient {
     pub async fn get_current_timetracked_projects_for_employee(
-        &self,
-        employee_id: u32,
+        &self
     ) -> Result<Vec<Project>, Box<dyn Error>> {
         let now: DateTime<Utc> = DateTime::from(SystemTime::now());
         let today = now.date();
 
-        self.get_timetracked_projects_for_employee(employee_id, today.naive_local())
+        self.get_timetracked_projects_for_employee(today.naive_local())
             .await
     }
 
     pub async fn get_timetracked_projects_for_employee(
         &self,
-        employee_id: u32,
         date: NaiveDate,
     ) -> Result<Vec<Project>, Box<dyn Error>> {
         let lower = date - Duration::weeks(2);
         let upper = date + Duration::days(1) * (6 - date.weekday().num_days_from_monday() as i32); // sunday of the same week as date
 
         let body = ProjectsForEmployeeRequest {
-            employee_id,
+            employee_id: self.employee_id,
             date_range: format!(
                 "({}, {})",
                 lower.format("%Y-%m-%d"),
                 upper.format("%Y-%m-%d")
             ),
         }
-        .serialize(serde_json::value::Serializer)?
-        .to_string();
+            .serialize(serde_json::value::Serializer)?
+            .to_string();
 
         let mut response: Response =
             surf::post("https://api-blank.floq.no/rpc/projects_info_for_employee_in_period")

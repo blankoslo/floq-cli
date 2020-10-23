@@ -1,10 +1,10 @@
 mod http_client;
 
 use chrono::{Duration, NaiveDate};
-
-use http_client::HTTPClient;
 use std::env;
 use dotenv::dotenv;
+
+use http_client::HTTPClient;
 use clap::{App, AppSettings, Arg};
 
 fn main() {
@@ -47,8 +47,8 @@ fn main() {
             let all = projects_matches.is_present("all");
 
             if all {
-                println!("get_all_projects is not implemented yet...");
-                async_std::task::block_on(setup()).expect("Done");
+                let client = get_client();
+                async_std::task::block_on(demo(client)).expect("Done");
             } else {
                 println!("get_projects is not implemented yet...");
             }
@@ -68,33 +68,31 @@ fn main() {
     }
 }
 
-async fn setup() -> Result<(), Box<dyn std::error::Error>> {
-    dotenv()?;
+fn get_client() -> HTTPClient {
+    dotenv().unwrap();
     let bearer_token = get_env_var("BEARER_TOKEN");
-    let http_client = HTTPClient::new(bearer_token);
-    let employee_id = get_env_var("EMPLOYEE_ID").parse()?;
-    demo(http_client, employee_id).await?;
-    Ok(())
+    let employee_id = get_env_var("EMPLOYEE_ID").parse().unwrap();
+
+    HTTPClient::new(bearer_token, employee_id)
 }
 
-async fn demo(http_client: HTTPClient, employee_id: u32) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>> {
     let projects = http_client.get_projects().await?;
     println!("Projects:");
     println!("{:#?}", projects);
 
-    let relevant_projects = http_client.get_current_timetracked_projects_for_employee(employee_id).await?;
+    let relevant_projects = http_client.get_current_timetracked_projects_for_employee().await?;
     println!();
     println!("Relevant projects:");
     println!("{:#?}", relevant_projects);
 
-    let current_week_timetrackings = http_client.get_current_week_timetracking(employee_id).await?;
+    let current_week_timetrackings = http_client.get_current_week_timetracking().await?;
     println!();
     println!("Current week timetracking:");
     println!("{:#?}", current_week_timetrackings);
 
     http_client
         .timetrack(
-            77,
             "SVO1000".to_string(),
             NaiveDate::from_ymd(2020, 10, 9),
             Duration::hours(7) + Duration::minutes(30),
