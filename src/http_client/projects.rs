@@ -67,7 +67,7 @@ impl ProjectForEmployeeResponse {
 
 impl HTTPClient {
     pub async fn get_current_timetracked_projects_for_employee(
-        &self
+        &self,
     ) -> Result<Vec<Project>, Box<dyn Error>> {
         let now: DateTime<Utc> = DateTime::from(SystemTime::now());
         let today = now.date();
@@ -91,8 +91,8 @@ impl HTTPClient {
                 upper.format("%Y-%m-%d")
             ),
         }
-            .serialize(serde_json::value::Serializer)?
-            .to_string();
+        .serialize(serde_json::value::Serializer)?
+        .to_string();
 
         let mut response: Response =
             surf::post("https://api-blank.floq.no/rpc/projects_info_for_employee_in_period")

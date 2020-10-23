@@ -44,9 +44,7 @@ impl TimetrackedProjectsResponse {
 }
 
 impl HTTPClient {
-    pub async fn get_current_week_timetracking(
-        &self,
-    ) -> Result<Vec<Timetrack>, Box<dyn Error>> {
+    pub async fn get_current_week_timetracking(&self) -> Result<Vec<Timetrack>, Box<dyn Error>> {
         let now: DateTime<Utc> = DateTime::from(SystemTime::now());
         let today = now.date();
         let days_from_monday = today.weekday().num_days_from_monday();
@@ -73,9 +71,12 @@ impl HTTPClient {
         &self,
         date: NaiveDate,
     ) -> Result<Vec<Timetrack>, Box<dyn std::error::Error>> {
-        let body = TimetrackedProjectsRequest { employee_id: self.employee_id, date }
-            .serialize(serde_json::value::Serializer)?
-            .to_string();
+        let body = TimetrackedProjectsRequest {
+            employee_id: self.employee_id,
+            date,
+        }
+        .serialize(serde_json::value::Serializer)?
+        .to_string();
 
         let mut response: Response =
             surf::post("https://api-blank.floq.no/rpc/projects_for_employee_for_date")

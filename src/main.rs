@@ -1,11 +1,11 @@
 mod http_client;
 
 use chrono::{Duration, NaiveDate};
-use std::env;
 use dotenv::dotenv;
+use std::env;
 
-use http_client::HTTPClient;
 use clap::{App, AppSettings, Arg};
+use http_client::HTTPClient;
 
 fn main() {
     let matches = App::new("timetracker")
@@ -19,27 +19,23 @@ fn main() {
                     Arg::new("all")
                         .about("Flag to list all project")
                         .short('a')
-                        .long("all")
+                        .long("all"),
                 ),
         )
-        .subcommand(
-            App::new("history")
-                .about("Get the history for the current week")
-        )
+        .subcommand(App::new("history").about("Get the history for the current week"))
         .subcommand(
             App::new("track")
                 .about("Track worked hours for a project")
                 .setting(AppSettings::ArgRequiredElseHelp)
-                .arg(
-                    Arg::new("project")
-                        .about("the project to track")
-                        .index(1))
+                .arg(Arg::new("project").about("the project to track").index(1))
                 .arg(
                     Arg::new("hours")
                         .about("the number of hours to track")
                         .index(2)
                         .takes_value(true)
-                        .multiple(true)))
+                        .multiple(true),
+                ),
+        )
         .get_matches();
 
     match matches.subcommand() {
@@ -53,12 +49,14 @@ fn main() {
                 println!("get_projects is not implemented yet...");
             }
         }
-        Some(("history", _)) => {
-            println!("History is not implemented yet...")
-        }
+        Some(("history", _)) => println!("History is not implemented yet..."),
         Some(("track", track_matches)) => {
             let project_code = track_matches.value_of("project").unwrap();
-            let hours = track_matches.values_of("hours").unwrap().collect::<Vec<_>>().join(", ");
+            let hours = track_matches
+                .values_of("hours")
+                .unwrap()
+                .collect::<Vec<_>>()
+                .join(", ");
 
             println!("Test {} {}", project_code, hours);
         }
@@ -81,7 +79,9 @@ async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>>
     println!("Projects:");
     println!("{:#?}", projects);
 
-    let relevant_projects = http_client.get_current_timetracked_projects_for_employee().await?;
+    let relevant_projects = http_client
+        .get_current_timetracked_projects_for_employee()
+        .await?;
     println!();
     println!("Relevant projects:");
     println!("{:#?}", relevant_projects);
