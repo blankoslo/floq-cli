@@ -164,8 +164,8 @@ impl fmt::Display for UIProjects {
 
         let customer_width = customer_name_length + padding;
 
-        write!(f,
-               "{:id_width$} {:customer_width$} {}\n",
+        writeln!(f,
+               "{:id_width$} {:customer_width$} {}",
                headings[0],
                headings[1],
                headings[2],
@@ -174,9 +174,9 @@ impl fmt::Display for UIProjects {
         )?;
 
         for project in self.projects.iter() {
-            write!(
+            writeln!(
                 f,
-                "{:id_width$} {:customer_width$} {}\n",
+                "{:id_width$} {:customer_width$} {}",
                 project.id,
                 project.customer.name,
                 project.name,
@@ -184,6 +184,6 @@ impl fmt::Display for UIProjects {
                 customer_width = customer_width
             )?;
         }
-        write!(f, "\n")
+        writeln!(f, "")
     }
 }
