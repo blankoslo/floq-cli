@@ -5,10 +5,11 @@ use dotenv::dotenv;
 use std::{env, fmt};
 
 use crate::http_client::projects::Project;
-use clap::{App, AppSettings, Arg};
+use clap::{App, AppSettings, Arg, ArgMatches};
 use http_client::HTTPClient;
+use std::error::Error;
 
-fn main() {
+fn main() -> i32 {
     let matches = App::new("timetracker")
         .about("Timetracking in the terminal")
         .version("1.0")
@@ -42,18 +43,33 @@ fn main() {
 
     let client = new_client();
 
+    async_std::task::block_on({
+        match perform_command(matches, client) {
+            Ok(_) => 0,
+            Err(e) => {
+                eprintln!("{}", e);
+                1
+            }
+        }
+    })
+}
+
+async fn perform_command(matches: ArgMatches, client: HTTPClient) -> Result<(), Box<dyn Error>> {
     match matches.subcommand() {
-        Some(("demo", _)) => async_std::task::block_on(demo(client)).expect("Done"),
+        Some(("demo", _)) => demo(client).await,
         Some(("projects", projects_matches)) => {
             let all = projects_matches.is_present("all");
 
             if all {
-                async_std::task::block_on(print_all_projects(client)).expect("Done");
+                print_all_projects(client).await
             } else {
-                async_std::task::block_on(print_relevant_projects(client)).expect("Done");
+                print_relevant_projects(client).await
             }
         }
-        Some(("history", _)) => println!("History is not implemented yet..."),
+        Some(("history", _)) => {
+            println!("History is not implemented yet...");
+            Ok(())
+        }
         Some(("track", track_matches)) => {
             let project_code = track_matches.value_of("project").unwrap();
             let hours = track_matches
@@ -63,10 +79,16 @@ fn main() {
                 .join(", ");
 
             println!("Test {} {}", project_code, hours);
+            Ok(())
         }
 
-        Some((_, _)) => unreachable!("Unknown commands should be handled by the library"),
-        None => println!("No subcommand was used"), // If all subcommands are defined above, anything else is unreachable!()
+        Some((_, _)) => {
+            unreachable!("Unknown commands should be handled by the library");
+        }
+        None => {
+            println!("No subcommand was used");
+            Ok(())
+        } // If all subcommands are defined above, anything else is unreachable!()
     }
 }
 
@@ -78,7 +100,7 @@ fn new_client() -> HTTPClient {
     HTTPClient::new(bearer_token, employee_id)
 }
 
-async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn Error>> {
     let current_week_timetrackings = http_client.get_current_week_timetracking().await?;
     println!();
     println!("Current week timetracking:");
@@ -93,6 +115,7 @@ async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>>
         .await?;
 
     println!("Done timetracking!");
+
     Ok(())
 }
 
@@ -120,6 +143,7 @@ fn get_env_var(key: &str) -> String {
     env::var(key).unwrap_or_else(|_| panic!("env var {} not defined", key))
 }
 
+// todo: find a better placement
 pub struct UIProjects {
     projects: Vec<Project>,
 }
@@ -140,35 +164,26 @@ impl fmt::Display for UIProjects {
 
         let customer_width = customer_name_length + padding;
 
-        let mut result = format!(
-            "{:id_width$} {:customer_width$} {}\n",
-            headings[0],
-            headings[1],
-            headings[2],
-            id_width = id_width,
-            customer_width = customer_width
-        )
-        .to_owned();
+        write!(f,
+               "{:id_width$} {:customer_width$} {}\n",
+               headings[0],
+               headings[1],
+               headings[2],
+               id_width = id_width,
+               customer_width = customer_width
+        )?;
 
         for project in self.projects.iter() {
-            let formatted_project = format!(
+            write!(
+                f,
                 "{:id_width$} {:customer_width$} {}\n",
                 project.id,
                 project.customer.name,
                 project.name,
                 id_width = id_width,
                 customer_width = customer_width
-            )
-            .to_owned();
-            // todo: handle this better?
-            result += &*formatted_project;
+            )?;
         }
-        write!(f, "{}", result)
-    }
-}
-
-impl fmt::Display for Project {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}: {}", self.id, self.customer.id, self.name)
+        write!(f, "\n")
     }
 }
