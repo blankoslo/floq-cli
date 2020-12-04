@@ -9,7 +9,7 @@ use clap::{App, AppSettings, Arg, ArgMatches};
 use http_client::HTTPClient;
 use std::error::Error;
 
-fn main() -> i32 {
+fn main() -> Result<(), Box<dyn Error> > {
     let matches = App::new("timetracker")
         .about("Timetracking in the terminal")
         .version("1.0")
@@ -43,13 +43,10 @@ fn main() -> i32 {
 
     let client = new_client();
 
-    async_std::task::block_on({
-        match perform_command(matches, client) {
-            Ok(_) => 0,
-            Err(e) => {
-                eprintln!("{}", e);
-                1
-            }
+    async_std::task::block_on(async {
+        match perform_command(matches, client).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e)
         }
     })
 }
