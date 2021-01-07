@@ -1,5 +1,5 @@
-mod auth;
 mod http_client;
+mod user;
 
 use chrono::{Duration, NaiveDate};
 
@@ -9,7 +9,15 @@ use dotenv::dotenv;
 use clap::{App, AppSettings, Arg};
 
 fn main() {
-    async_std::task::block_on(auth::authorize());
+    dotenv().unwrap();
+    
+    async_std::task::block_on(async {
+        let oauth_tokens = user::auth::authorize().await.unwrap();
+        println!("{:#?}", oauth_tokens);
+        let oauth_tokens = user::auth::refresh_access_token(oauth_tokens.refresh_token.as_str()).await.unwrap();
+        println!("{:#?}", oauth_tokens);
+        oauth_tokens
+    });
 
     let matches = App::new("timetracker")
         .about("Timetracking in the terminal")
@@ -72,7 +80,6 @@ fn main() {
 }
 
 async fn setup() -> Result<(), Box<dyn std::error::Error>> {
-    dotenv()?;
     let bearer_token = get_env_var("BEARER_TOKEN");
     let http_client = HTTPClient::new(bearer_token);
     let employee_id = get_env_var("EMPLOYEE_ID").parse()?;
