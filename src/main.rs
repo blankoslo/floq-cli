@@ -1,22 +1,15 @@
 mod http_client;
 mod user;
 
-use chrono::{Duration, NaiveDate};
+use chrono::{Duration, Utc};
 
 use http_client::HTTPClient;
-use std::env;
-use dotenv::dotenv;
 use clap::{App, AppSettings, Arg};
+use user::User;
 
 fn main() {
-    dotenv().unwrap();
-    
-    async_std::task::block_on(async {
-        let oauth_tokens = user::auth::authorize().await.unwrap();
-        println!("{:#?}", oauth_tokens);
-        let oauth_tokens = user::auth::refresh_access_token(oauth_tokens.refresh_token.as_str()).await.unwrap();
-        println!("{:#?}", oauth_tokens);
-        oauth_tokens
+    let user = async_std::task::block_on(async {
+        user::get_or_authorize_user().await.unwrap()
     });
 
     let matches = App::new("timetracker")
@@ -59,7 +52,9 @@ fn main() {
 
             if all {
                 println!("get_all_projects is not implemented yet...");
-                async_std::task::block_on(setup()).expect("Done");
+                async_std::task::block_on(async {
+                    demo(HTTPClient::new(user.access_token.clone()), user).await
+                }).expect("Done");
             } else {
                 println!("get_projects is not implemented yet...");
             }
@@ -79,42 +74,30 @@ fn main() {
     }
 }
 
-async fn setup() -> Result<(), Box<dyn std::error::Error>> {
-    let bearer_token = get_env_var("BEARER_TOKEN");
-    let http_client = HTTPClient::new(bearer_token);
-    let employee_id = get_env_var("EMPLOYEE_ID").parse()?;
-    demo(http_client, employee_id).await?;
-    Ok(())
-}
-
-async fn demo(http_client: HTTPClient, employee_id: u32) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo(http_client: HTTPClient, user: User) -> Result<(), Box<dyn std::error::Error>> {
     let projects = http_client.get_projects().await?;
     println!("Projects:");
     println!("{:#?}", projects);
 
-    let relevant_projects = http_client.get_current_timetracked_projects_for_employee(employee_id).await?;
+    let relevant_projects = http_client.get_current_timetracked_projects_for_employee(user.employee_id).await?;
     println!();
     println!("Relevant projects:");
     println!("{:#?}", relevant_projects);
 
-    let current_week_timetrackings = http_client.get_current_week_timetracking(employee_id).await?;
+    let current_week_timetrackings = http_client.get_current_week_timetracking(user.employee_id).await?;
     println!();
     println!("Current week timetracking:");
     println!("{:#?}", current_week_timetrackings);
 
     http_client
         .timetrack(
-            77,
+            user.employee_id,
             "SVO1000".to_string(),
-            NaiveDate::from_ymd(2020, 10, 9),
+            Utc::now().date().naive_utc(),
             Duration::hours(7) + Duration::minutes(30),
         )
         .await?;
 
     println!("Done timetracking!");
     Ok(())
-}
-
-fn get_env_var(key: &str) -> String {
-    env::var(key).unwrap_or_else(|_| panic!("env var {} not defined", key))
 }

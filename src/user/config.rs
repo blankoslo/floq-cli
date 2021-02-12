@@ -7,10 +7,14 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct UserConfig {
-    employee_id: u16,
-    email: String,
-    name: String,
-    refresh_token: String,
+    pub employee_id: u16,
+    pub email: String,
+    pub name: String,
+    pub refresh_token: String,
+}
+
+fn folder_path() -> String {
+    env::var("HOME").expect("Did not find env var 'HOME'") + "/.floq"
 }
 
 fn file_path() -> String {
@@ -39,6 +43,16 @@ pub async fn load_config() -> Result<Option<UserConfig>, Box<dyn Error>> {
 
 pub async fn update_config(config: &UserConfig) -> Result<(), Box<dyn Error>> {
     let file_content = toml::to_string(config)?;
+
+    match fs::create_dir(folder_path()).await {
+        Ok(()) => (),
+        Err(e) => {
+            match e.kind() {
+                std::io::ErrorKind::AlreadyExists => (),
+                e => panic!(e),
+            }
+        }
+    }
 
     fs::write(file_path(), file_content).await
         .map_err(|e| e.into())

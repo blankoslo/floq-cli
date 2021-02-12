@@ -1,4 +1,5 @@
 use super::HTTPClient;
+use super::FLOQ_API_DOMAIN;
 
 use std::error::Error;
 use std::time::SystemTime;
@@ -19,7 +20,7 @@ pub struct Timetrack {
 
 #[derive(Serialize, Debug)]
 struct TimetrackedProjectsRequest {
-    employee_id: u32,
+    employee_id: u16,
     date: NaiveDate,
 }
 
@@ -46,7 +47,7 @@ impl TimetrackedProjectsResponse {
 impl HTTPClient {
     pub async fn get_current_week_timetracking(
         &self,
-        employee_id: u32,
+        employee_id: u16,
     ) -> Result<Vec<Timetrack>, Box<dyn Error>> {
         let now: DateTime<Utc> = DateTime::from(SystemTime::now());
         let today = now.date();
@@ -72,7 +73,7 @@ impl HTTPClient {
 
     pub async fn get_timetracking_for_day(
         &self,
-        employee_id: u32,
+        employee_id: u16,
         date: NaiveDate,
     ) -> Result<Vec<Timetrack>, Box<dyn std::error::Error>> {
         let body = TimetrackedProjectsRequest { employee_id, date }
@@ -80,7 +81,7 @@ impl HTTPClient {
             .to_string();
 
         let mut response: Response =
-            surf::post("https://api-blank.floq.no/rpc/projects_for_employee_for_date")
+            surf::post(format!("{}/rpc/projects_for_employee_for_date", FLOQ_API_DOMAIN))
                 .body(body)
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
@@ -100,8 +101,8 @@ impl HTTPClient {
 
 #[derive(Serialize, Debug)]
 struct TimetrackRequest {
-    creator: u32,
-    employee: u32,
+    creator: u16,
+    employee: u16,
     project: String,
     date: NaiveDate,
     minutes: u16,
@@ -110,7 +111,7 @@ struct TimetrackRequest {
 impl HTTPClient {
     pub async fn timetrack(
         &self,
-        employee_id: u32,
+        employee_id: u16,
         project_id: String,
         date: NaiveDate,
         time: Duration,
@@ -125,7 +126,7 @@ impl HTTPClient {
         .serialize(serde_json::value::Serializer)?
         .to_string();
 
-        surf::post("https://api-blank.floq.no/time_entry")
+        surf::post(format!("{}/time_entry", FLOQ_API_DOMAIN))
             .body(body)
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", self.bearer_token))

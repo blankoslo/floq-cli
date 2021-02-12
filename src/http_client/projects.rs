@@ -2,6 +2,7 @@ use std::error::Error;
 use std::time::SystemTime;
 
 use super::HTTPClient;
+use super::FLOQ_API_DOMAIN;
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
@@ -24,7 +25,7 @@ pub struct Customer {
 impl HTTPClient {
     pub async fn get_projects(&self) -> Result<Vec<Project>, Box<dyn Error>> {
         let mut response: Response =
-            surf::get("https://api-blank.floq.no/projects?select=id,name,active,customer{id,name}")
+            surf::get(format!("{}/projects?select=id,name,active,customer{{id,name}}", FLOQ_API_DOMAIN))
                 .header("Accept", "application/json")
                 .header("Authorization", format!("Bearer {}", self.bearer_token))
                 .send()
@@ -38,7 +39,7 @@ impl HTTPClient {
 
 #[derive(Serialize, Debug)]
 struct ProjectsForEmployeeRequest {
-    employee_id: u32,
+    employee_id: u16,
     date_range: String,
 }
 
@@ -68,7 +69,7 @@ impl ProjectForEmployeeResponse {
 impl HTTPClient {
     pub async fn get_current_timetracked_projects_for_employee(
         &self,
-        employee_id: u32,
+        employee_id: u16,
     ) -> Result<Vec<Project>, Box<dyn Error>> {
         let now: DateTime<Utc> = DateTime::from(SystemTime::now());
         let today = now.date();
@@ -79,7 +80,7 @@ impl HTTPClient {
 
     pub async fn get_timetracked_projects_for_employee(
         &self,
-        employee_id: u32,
+        employee_id: u16,
         date: NaiveDate,
     ) -> Result<Vec<Project>, Box<dyn Error>> {
         let lower = date - Duration::weeks(2);
@@ -97,7 +98,7 @@ impl HTTPClient {
         .to_string();
 
         let mut response: Response =
-            surf::post("https://api-blank.floq.no/rpc/projects_info_for_employee_in_period")
+            surf::post(format!("{}/rpc/projects_info_for_employee_in_period", FLOQ_API_DOMAIN))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .header("Authorization", format!("Bearer {}", self.bearer_token))
