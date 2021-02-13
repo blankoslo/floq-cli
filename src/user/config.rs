@@ -24,18 +24,14 @@ fn file_path() -> String {
 pub async fn load_config() -> Result<Option<UserConfig>, Box<dyn Error>> {
     let r = fs::read_to_string(file_path())
         .await
-        .map(|s| {
-            toml::from_str::<UserConfig>(s.as_str())
-                .map(|c| Some(c))
-                .map_err(|e| e.into())
-        })
+        .and_then(|s| toml::from_str::<UserConfig>(s.as_str()).map_err(|e| e.into()))
         .map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => Ok(None),
             _ => Err(e),
         });
 
     match r {
-        Ok(ok) => ok,
+        Ok(uc) => Ok(Some(uc)),
         Err(e) => e.map_err(|e| e.into()),
     }
 }

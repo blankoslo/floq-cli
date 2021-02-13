@@ -32,7 +32,7 @@ pub async fn get_or_authorize_user() -> Result<User, Box<dyn Error>> {
         let employee = http::get_logged_in_employee(&authorized_user.access_token).await?;
 
         let config = config::UserConfig {
-            employee_id: employee.id.clone(),
+            employee_id: employee.id,
             email: employee.email.clone(),
             name: employee.name.clone(),
             refresh_token: authorized_user.refresh_token,
