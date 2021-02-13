@@ -2,9 +2,8 @@ use super::HTTPClient;
 use super::FLOQ_API_DOMAIN;
 
 use std::error::Error;
-use std::time::SystemTime;
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
+use chrono::{Datelike, Duration, NaiveDate, Utc};
 use futures::join;
 use serde::{Deserialize, Serialize};
 use surf::Response;
@@ -46,8 +45,7 @@ impl TimetrackedProjectsResponse {
 
 impl HTTPClient {
     pub async fn get_current_week_timetracking(&self) -> Result<Vec<Timetrack>, Box<dyn Error>> {
-        let now: DateTime<Utc> = DateTime::from(SystemTime::now());
-        let today = now.date();
+        let today = Utc::now().date();
         let days_from_monday = today.weekday().num_days_from_monday();
 
         let monday = today.naive_local() - Duration::days(1) * days_from_monday as i32;
@@ -79,14 +77,14 @@ impl HTTPClient {
         .serialize(serde_json::value::Serializer)?
         .to_string();
 
-        let mut response: Response =
-            surf::post(format!("{}/rpc/projects_for_employee_for_date", FLOQ_API_DOMAIN))
-                .body(body)
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .header("Authorization", format!("Bearer {}", self.access_token))
-                .send()
-                .await?;
+        let url = format!("{}/rpc/projects_for_employee_for_date", FLOQ_API_DOMAIN);
+        let mut response: Response = surf::post(url)
+            .body(body)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .send()
+            .await?;
 
         let response: Vec<TimetrackedProjectsResponse> = response.body_json().await?;
 

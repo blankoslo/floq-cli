@@ -31,14 +31,12 @@ pub async fn get_logged_in_employee(access_token: &str) -> Result<Employee, Box<
         .header("Authorization", format!("Bearer {}", access_token))
         .send()
         .await?;
-    
-    let response: [EmployeeResponse; 1] = response.body_json()
-        .await
-        .map_err(|e| {
-            eprintln!("{:?}", e.status());
-            eprintln!("{:?}", e);
-            "Could not parse"
-        })?;
+
+    let response: [EmployeeResponse; 1] = response.body_json().await.map_err(|e| {
+        eprintln!("{:?}", e.status());
+        eprintln!("{:?}", e);
+        "Could not parse"
+    })?;
     let [result] = response;
 
     Ok(result.into_employee())

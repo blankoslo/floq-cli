@@ -51,14 +51,15 @@ pub async fn authorize() -> Result<AuthorizedUser, Box<dyn Error>> {
 }
 
 fn handle_callback(request: &Request) -> Result<AuthorizedUser, &str> {
-    let mut params = match serde_urlencoded::from_str::<HashMap<String, String>>(request.raw_query_string()) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("Deserialization of query params failed: {:?}", e);
-            return Err("Unable to parse callback request URL");
-        },
-    };
-        
+    let mut params =
+        match serde_urlencoded::from_str::<HashMap<String, String>>(request.raw_query_string()) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("Deserialization of query params failed: {:?}", e);
+                return Err("Unable to parse callback request URL");
+            }
+        };
+
     let access_token = match params.remove("access_token") {
         Some(at) => at,
         None => return Err("Required param 'access_token' is missing from callback"),
@@ -82,7 +83,11 @@ fn handle_callback(request: &Request) -> Result<AuthorizedUser, &str> {
     };
     let expires_at = expires_at.naive_utc();
 
-    Ok(AuthorizedUser { access_token, refresh_token, expires_at })
+    Ok(AuthorizedUser {
+        access_token,
+        refresh_token,
+        expires_at,
+    })
 }
 
 #[derive(Serialize)]
@@ -112,18 +117,16 @@ pub async fn refresh_access_token(refresh_token: &str) -> Result<AuthorizedUser,
     let request = surf::post(format!("{}/login/oauth/refresh", FLOQ_DOMAIN))
         .header("Content-Type", "application/json")
         .body(request_body);
-    
+
     let mut response = request.send().await?;
 
     if response.status().is_client_error() || response.status().is_server_error() {
         Err(format!("Got status {}", response.status()).into())
     } else {
-        let tokens: RefreshAccessTokenResponse = response.body_json()
-            .await
-            .map_err(|e| {
-                println!("{:?}", e);
-                e
-            })?;
+        let tokens: RefreshAccessTokenResponse = response.body_json().await.map_err(|e| {
+            println!("{:?}", e);
+            e
+        })?;
 
         Ok(tokens.into_oauth_token(refresh_token))
     }

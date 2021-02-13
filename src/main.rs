@@ -7,9 +7,7 @@ use clap::{App, AppSettings, Arg};
 use http_client::HTTPClient;
 
 fn main() {
-    let user = async_std::task::block_on(async {
-        user::get_or_authorize_user().await.unwrap()
-    });
+    let user = async_std::task::block_on(async { user::get_or_authorize_user().await.unwrap() });
 
     let matches = App::new("timetracker")
         .about("Timetracking in the terminal")

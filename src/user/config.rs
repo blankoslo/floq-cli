@@ -1,9 +1,9 @@
-use std::error::Error;
 use std::env;
+use std::error::Error;
 
 use async_std::fs;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct UserConfig {
@@ -22,22 +22,21 @@ fn file_path() -> String {
 }
 
 pub async fn load_config() -> Result<Option<UserConfig>, Box<dyn Error>> {
-    let r = fs::read_to_string(file_path()).await
+    let r = fs::read_to_string(file_path())
+        .await
         .map(|s| {
             toml::from_str::<UserConfig>(s.as_str())
-            .map(|c| Some(c))
-            .map_err(|e| e.into())
+                .map(|c| Some(c))
+                .map_err(|e| e.into())
         })
-        .map_err(|e| {
-            match e.kind() {
-                std::io::ErrorKind::NotFound => Ok(None),
-                _ => Err(e)
-            }
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => Ok(None),
+            _ => Err(e),
         });
 
     match r {
         Ok(ok) => ok,
-        Err(e) => e.map_err(|e| e.into())
+        Err(e) => e.map_err(|e| e.into()),
     }
 }
 
@@ -46,14 +45,13 @@ pub async fn update_config(config: &UserConfig) -> Result<(), Box<dyn Error>> {
 
     match fs::create_dir(folder_path()).await {
         Ok(()) => (),
-        Err(e) => {
-            match e.kind() {
-                std::io::ErrorKind::AlreadyExists => (),
-                e => panic!(e),
-            }
-        }
+        Err(e) => match e.kind() {
+            std::io::ErrorKind::AlreadyExists => (),
+            e => panic!(e),
+        },
     }
 
-    fs::write(file_path(), file_content).await
+    fs::write(file_path(), file_content)
+        .await
         .map_err(|e| e.into())
 }

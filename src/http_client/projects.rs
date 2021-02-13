@@ -1,10 +1,9 @@
 use std::error::Error;
-use std::time::SystemTime;
 
 use super::HTTPClient;
 use super::FLOQ_API_DOMAIN;
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
+use chrono::{Datelike, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use surf::Response;
 
@@ -24,12 +23,15 @@ pub struct Customer {
 
 impl HTTPClient {
     pub async fn get_projects(&self) -> Result<Vec<Project>, Box<dyn Error>> {
-        let mut response: Response =
-            surf::get(format!("{}/projects?select=id,name,active,customer{{id,name}}", FLOQ_API_DOMAIN))
-                .header("Accept", "application/json")
-                .header("Authorization", format!("Bearer {}", self.access_token))
-                .send()
-                .await?;
+        let url = format!(
+            "{}/projects?select=id,name,active,customer{{id,name}}",
+            FLOQ_API_DOMAIN
+        );
+        let mut response: Response = surf::get(url)
+            .header("Accept", "application/json")
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .send()
+            .await?;
 
         let projects: Vec<Project> = response.body_json().await?;
 
@@ -70,8 +72,7 @@ impl HTTPClient {
     pub async fn get_current_timetracked_projects_for_employee(
         &self,
     ) -> Result<Vec<Project>, Box<dyn Error>> {
-        let now: DateTime<Utc> = DateTime::from(SystemTime::now());
-        let today = now.date();
+        let today = Utc::now().date();
 
         self.get_timetracked_projects_for_employee(today.naive_local())
             .await
@@ -95,14 +96,17 @@ impl HTTPClient {
         .serialize(serde_json::value::Serializer)?
         .to_string();
 
-        let mut response: Response =
-            surf::post(format!("{}/rpc/projects_info_for_employee_in_period", FLOQ_API_DOMAIN))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .header("Authorization", format!("Bearer {}", self.access_token))
-                .body(body)
-                .send()
-                .await?;
+        let url = format!(
+            "{}/rpc/projects_info_for_employee_in_period",
+            FLOQ_API_DOMAIN
+        );
+        let mut response: Response = surf::post(url)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .body(body)
+            .send()
+            .await?;
 
         let projects: Vec<ProjectForEmployeeResponse> = response.body_json().await?;
 
