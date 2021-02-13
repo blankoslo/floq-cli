@@ -117,9 +117,7 @@ async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn Error>> {
 }
 
 async fn print_all_projects(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>> {
-    let ui_projects = UIProjects {
-        projects: http_client.get_projects().await?,
-    };
+    let ui_projects = UIProjects(http_client.get_projects().await?);
     println!("{}", ui_projects);
     Ok(())
 }
@@ -127,11 +125,11 @@ async fn print_all_projects(http_client: HTTPClient) -> Result<(), Box<dyn std::
 async fn print_relevant_projects(
     http_client: HTTPClient,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let relevant_projects = UIProjects {
-        projects: http_client
+    let relevant_projects = UIProjects(
+        http_client
             .get_current_timetracked_projects_for_employee()
-            .await?,
-    };
+            .await?
+    );
     println!("{}", relevant_projects);
     Ok(())
 }
@@ -139,11 +137,7 @@ async fn print_relevant_projects(
 fn get_env_var(key: &str) -> String {
     env::var(key).unwrap_or_else(|_| panic!("env var {} not defined", key))
 }
-
-// todo: find a better placement
-pub struct UIProjects {
-    projects: Vec<Project>,
-}
+struct UIProjects(Vec<Project>);
 
 impl fmt::Display for UIProjects {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -151,17 +145,14 @@ impl fmt::Display for UIProjects {
 
         let padding = 7;
         let id_width = headings[0].len() + padding;
-        let mut customer_name_length = 0;
-
-        for project in self.projects.iter() {
-            if project.customer.name.len() > customer_name_length {
-                customer_name_length = project.customer.name.len()
-            }
-        }
-
+        let customer_name_length = self.0.iter()
+            .map(|p| p.customer.name.len())
+            .max()
+            .unwrap_or(0);
         let customer_width = customer_name_length + padding;
 
-        writeln!(f,
+        writeln!(
+                f,
                "{:id_width$} {:customer_width$} {}",
                headings[0],
                headings[1],
@@ -170,7 +161,7 @@ impl fmt::Display for UIProjects {
                customer_width = customer_width
         )?;
 
-        for project in self.projects.iter() {
+        for project in self.0.iter() {
             writeln!(
                 f,
                 "{:id_width$} {:customer_width$} {}",
@@ -181,6 +172,6 @@ impl fmt::Display for UIProjects {
                 customer_width = customer_width
             )?;
         }
-        writeln!(f, "")
+        writeln!(f)
     }
 }
