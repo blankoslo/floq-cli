@@ -3,9 +3,8 @@ mod user;
 
 use chrono::{Duration, Utc};
 
-use http_client::HTTPClient;
 use clap::{App, AppSettings, Arg};
-use user::User;
+use http_client::HTTPClient;
 
 fn main() {
     let user = async_std::task::block_on(async {
@@ -23,27 +22,23 @@ fn main() {
                     Arg::new("all")
                         .about("Flag to list all project")
                         .short('a')
-                        .long("all")
+                        .long("all"),
                 ),
         )
-        .subcommand(
-            App::new("history")
-                .about("Get the history for the current week")
-        )
+        .subcommand(App::new("history").about("Get the history for the current week"))
         .subcommand(
             App::new("track")
                 .about("Track worked hours for a project")
                 .setting(AppSettings::ArgRequiredElseHelp)
-                .arg(
-                    Arg::new("project")
-                        .about("the project to track")
-                        .index(1))
+                .arg(Arg::new("project").about("the project to track").index(1))
                 .arg(
                     Arg::new("hours")
                         .about("the number of hours to track")
                         .index(2)
                         .takes_value(true)
-                        .multiple(true)))
+                        .multiple(true),
+                ),
+        )
         .get_matches();
 
     match matches.subcommand() {
@@ -51,20 +46,20 @@ fn main() {
             let all = projects_matches.is_present("all");
 
             if all {
-                println!("get_all_projects is not implemented yet...");
-                async_std::task::block_on(async {
-                    demo(HTTPClient::new(user.access_token.clone()), user).await
-                }).expect("Done");
+                let client = HTTPClient::from_user(&user);
+                async_std::task::block_on(demo(client)).expect("Done");
             } else {
                 println!("get_projects is not implemented yet...");
             }
         }
-        Some(("history", _)) => {
-            println!("History is not implemented yet...")
-        }
+        Some(("history", _)) => println!("History is not implemented yet..."),
         Some(("track", track_matches)) => {
             let project_code = track_matches.value_of("project").unwrap();
-            let hours = track_matches.values_of("hours").unwrap().collect::<Vec<_>>().join(", ");
+            let hours = track_matches
+                .values_of("hours")
+                .unwrap()
+                .collect::<Vec<_>>()
+                .join(", ");
 
             println!("Test {} {}", project_code, hours);
         }
@@ -74,24 +69,25 @@ fn main() {
     }
 }
 
-async fn demo(http_client: HTTPClient, user: User) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>> {
     let projects = http_client.get_projects().await?;
     println!("Projects:");
     println!("{:#?}", projects);
 
-    let relevant_projects = http_client.get_current_timetracked_projects_for_employee(user.employee_id).await?;
+    let relevant_projects = http_client
+        .get_current_timetracked_projects_for_employee()
+        .await?;
     println!();
     println!("Relevant projects:");
     println!("{:#?}", relevant_projects);
 
-    let current_week_timetrackings = http_client.get_current_week_timetracking(user.employee_id).await?;
+    let current_week_timetrackings = http_client.get_current_week_timetracking().await?;
     println!();
     println!("Current week timetracking:");
     println!("{:#?}", current_week_timetrackings);
 
     http_client
         .timetrack(
-            user.employee_id,
             "SVO1000".to_string(),
             Utc::now().date().naive_utc(),
             Duration::hours(7) + Duration::minutes(30),

@@ -4,8 +4,6 @@ mod http;
 
 use std::error::Error;
 
-use crate::http_client::HTTPClient;
-
 pub struct User {
     pub employee_id: u16,
     pub email: String,
@@ -31,8 +29,7 @@ pub async fn get_or_authorize_user() -> Result<User, Box<dyn Error>> {
     } else {
         let authorized_user = auth::authorize().await?;
 
-        let http_client = HTTPClient::new(authorized_user.access_token.clone());
-        let employee = http_client.get_logged_in_employee().await?;
+        let employee = http::get_logged_in_employee(&authorized_user.access_token).await?;
 
         let config = config::UserConfig {
             employee_id: employee.id.clone(),

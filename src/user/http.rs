@@ -4,7 +4,6 @@ use serde::Deserialize;
 
 use super::Employee;
 
-use crate::http_client::HTTPClient;
 use crate::http_client::FLOQ_API_DOMAIN;
 
 #[derive(Deserialize)]
@@ -26,23 +25,21 @@ impl EmployeeResponse {
     }
 }
 
-impl HTTPClient {
-    pub async fn get_logged_in_employee(&self) -> Result<Employee, Box<dyn Error>> {
-        let mut response = surf::post(format!("{}/rpc/who_am_i", FLOQ_API_DOMAIN))
-            .header("Accept", "application/json")
-            .header("Authorization", format!("Bearer {}", self.bearer_token))
-            .send()
-            .await?;
-        
-        let response: [EmployeeResponse; 1] = response.body_json()
-            .await
-            .map_err(|e| {
-                eprintln!("{:?}", e.status());
-                eprintln!("{:?}", e);
-                "Could not parse"
-            })?;
-        let [result] = response;
+pub async fn get_logged_in_employee(access_token: &str) -> Result<Employee, Box<dyn Error>> {
+    let mut response = surf::post(format!("{}/rpc/who_am_i", FLOQ_API_DOMAIN))
+        .header("Accept", "application/json")
+        .header("Authorization", format!("Bearer {}", access_token))
+        .send()
+        .await?;
+    
+    let response: [EmployeeResponse; 1] = response.body_json()
+        .await
+        .map_err(|e| {
+            eprintln!("{:?}", e.status());
+            eprintln!("{:?}", e);
+            "Could not parse"
+        })?;
+    let [result] = response;
 
-        Ok(result.into_employee())
-    }
+    Ok(result.into_employee())
 }

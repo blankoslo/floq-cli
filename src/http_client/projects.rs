@@ -27,7 +27,7 @@ impl HTTPClient {
         let mut response: Response =
             surf::get(format!("{}/projects?select=id,name,active,customer{{id,name}}", FLOQ_API_DOMAIN))
                 .header("Accept", "application/json")
-                .header("Authorization", format!("Bearer {}", self.bearer_token))
+                .header("Authorization", format!("Bearer {}", self.access_token))
                 .send()
                 .await?;
 
@@ -69,25 +69,23 @@ impl ProjectForEmployeeResponse {
 impl HTTPClient {
     pub async fn get_current_timetracked_projects_for_employee(
         &self,
-        employee_id: u16,
     ) -> Result<Vec<Project>, Box<dyn Error>> {
         let now: DateTime<Utc> = DateTime::from(SystemTime::now());
         let today = now.date();
 
-        self.get_timetracked_projects_for_employee(employee_id, today.naive_local())
+        self.get_timetracked_projects_for_employee(today.naive_local())
             .await
     }
 
     pub async fn get_timetracked_projects_for_employee(
         &self,
-        employee_id: u16,
         date: NaiveDate,
     ) -> Result<Vec<Project>, Box<dyn Error>> {
         let lower = date - Duration::weeks(2);
         let upper = date + Duration::days(1) * (6 - date.weekday().num_days_from_monday() as i32); // sunday of the same week as date
 
         let body = ProjectsForEmployeeRequest {
-            employee_id,
+            employee_id: self.employee_id,
             date_range: format!(
                 "({}, {})",
                 lower.format("%Y-%m-%d"),
@@ -101,7 +99,7 @@ impl HTTPClient {
             surf::post(format!("{}/rpc/projects_info_for_employee_in_period", FLOQ_API_DOMAIN))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
-                .header("Authorization", format!("Bearer {}", self.bearer_token))
+                .header("Authorization", format!("Bearer {}", self.access_token))
                 .body(body)
                 .send()
                 .await?;
