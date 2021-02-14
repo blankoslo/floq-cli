@@ -14,7 +14,6 @@ pub struct AuthorizedUser {
     pub expires_at: NaiveDateTime,
 }
 
-// TODO code_challenge & code_challenge_method
 pub async fn authorize() -> Result<AuthorizedUser, Box<dyn Error>> {
     let (tx, rx) = mpsc::sync_channel::<Result<AuthorizedUser, String>>(0);
 

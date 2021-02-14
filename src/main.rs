@@ -15,6 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .version("1.0")
         .author("The Rust Gang")
         .subcommand(App::new("demo").about("Get a demo of features not used elsewhere"))
+        .subcommand(App::new("auth").about("Authenticate again Floq"))
         .subcommand(
             App::new("projects")
                 .about("Lists name and code of projects")
@@ -42,23 +43,31 @@ fn main() -> Result<(), Box<dyn Error>> {
         .get_matches();
 
     async_std::task::block_on(async {
-        let user =
-            async_std::task::block_on(async { user::get_or_authorize_user().await.unwrap() });
-        let client = HTTPClient::from_user(&user);
-
-        match perform_command(matches, client).await {
+        match perform_command(matches).await {
             Ok(_) => Ok(()),
             Err(e) => Err(e),
         }
     })
 }
 
-async fn perform_command(matches: ArgMatches, client: HTTPClient) -> Result<(), Box<dyn Error>> {
+async fn perform_command(matches: ArgMatches) -> Result<(), Box<dyn Error>> {
     match matches.subcommand() {
-        Some(("demo", _)) => demo(client).await,
-        Some(("projects", projects_matches)) => {
-            let all = projects_matches.is_present("all");
+        Some(("demo", _)) => {
+            let user = user::load_user_from_config().await?;
+            let client = HTTPClient::from_user(&user);
 
+            demo(client).await
+        }
+        Some(("auth", _)) => {
+            let user = user::authorize_user().await?;
+            println!("Hi {}!", user.name);
+            Ok(())
+        },
+        Some(("projects", projects_matches)) => {
+            let user = user::load_user_from_config().await?;
+            let client = HTTPClient::from_user(&user);
+
+            let all = projects_matches.is_present("all");
             if all {
                 print_all_projects(client).await
             } else {
