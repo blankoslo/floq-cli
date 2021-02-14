@@ -1,18 +1,20 @@
 mod http_client;
 mod user;
 
-use chrono::{Duration, Utc};
+use crate::http_client::projects::Project;
 
-use clap::{App, AppSettings, Arg};
+use std::{error::Error, fmt};
+
+use chrono::{Duration, Utc};
+use clap::{App, AppSettings, Arg, ArgMatches};
 use http_client::HTTPClient;
 
-fn main() {
-    let user = async_std::task::block_on(async { user::get_or_authorize_user().await.unwrap() });
-
+fn main() -> Result<(), Box<dyn Error>> {
     let matches = App::new("timetracker")
         .about("Timetracking in the terminal")
         .version("1.0")
         .author("The Rust Gang")
+        .subcommand(App::new("demo").about("Get a demo of features not used elsewhere"))
         .subcommand(
             App::new("projects")
                 .about("Lists name and code of projects")
@@ -39,18 +41,34 @@ fn main() {
         )
         .get_matches();
 
+    async_std::task::block_on(async {
+        let user =
+            async_std::task::block_on(async { user::get_or_authorize_user().await.unwrap() });
+        let client = HTTPClient::from_user(&user);
+
+        match perform_command(matches, client).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        }
+    })
+}
+
+async fn perform_command(matches: ArgMatches, client: HTTPClient) -> Result<(), Box<dyn Error>> {
     match matches.subcommand() {
+        Some(("demo", _)) => demo(client).await,
         Some(("projects", projects_matches)) => {
             let all = projects_matches.is_present("all");
 
             if all {
-                let client = HTTPClient::from_user(&user);
-                async_std::task::block_on(demo(client)).expect("Done");
+                print_all_projects(client).await
             } else {
-                println!("get_projects is not implemented yet...");
+                print_relevant_projects(client).await
             }
         }
-        Some(("history", _)) => println!("History is not implemented yet..."),
+        Some(("history", _)) => {
+            println!("History is not implemented yet...");
+            Ok(())
+        }
         Some(("track", track_matches)) => {
             let project_code = track_matches.value_of("project").unwrap();
             let hours = track_matches
@@ -60,10 +78,16 @@ fn main() {
                 .join(", ");
 
             println!("Test {} {}", project_code, hours);
+            Ok(())
         }
 
-        Some((_, _)) => unreachable!("Unknown commands should be handled by the library"),
-        None => println!("No subcommand was used"), // If all subcommands are defined above, anything else is unreachable!()
+        Some((_, _)) => {
+            unreachable!("Unknown commands should be handled by the library");
+        }
+        None => {
+            println!("No subcommand was used");
+            Ok(())
+        } // If all subcommands are defined above, anything else is unreachable!()
     }
 }
 
@@ -93,5 +117,65 @@ async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>>
         .await?;
 
     println!("Done timetracking!");
+
     Ok(())
+}
+
+async fn print_all_projects(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>> {
+    let ui_projects = UIProjects(http_client.get_projects().await?);
+    println!("{}", ui_projects);
+    Ok(())
+}
+
+async fn print_relevant_projects(
+    http_client: HTTPClient,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let relevant_projects = UIProjects(
+        http_client
+            .get_current_timetracked_projects_for_employee()
+            .await?,
+    );
+    println!("{}", relevant_projects);
+    Ok(())
+}
+
+struct UIProjects(Vec<Project>);
+
+impl fmt::Display for UIProjects {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let headings = ["PROSJEKT KODE", "KUNDE", "BESKRIVELSE"];
+
+        let padding = 7;
+        let id_width = headings[0].len() + padding;
+        let customer_name_length = self
+            .0
+            .iter()
+            .map(|p| p.customer.name.len())
+            .max()
+            .unwrap_or(0);
+        let customer_width = customer_name_length + padding;
+
+        writeln!(
+            f,
+            "{:id_width$} {:customer_width$} {}",
+            headings[0],
+            headings[1],
+            headings[2],
+            id_width = id_width,
+            customer_width = customer_width
+        )?;
+
+        for project in self.0.iter() {
+            writeln!(
+                f,
+                "{:id_width$} {:customer_width$} {}",
+                project.id,
+                project.customer.name,
+                project.name,
+                id_width = id_width,
+                customer_width = customer_width
+            )?;
+        }
+        writeln!(f)
+    }
 }
