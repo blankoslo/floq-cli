@@ -1,16 +1,23 @@
 pub mod projects;
 pub mod timetrack;
 
+use std::env;
+
+use crate::user::User;
+
+pub const FLOQ_DOMAIN: &str = env!("FLOQ_DOMAIN");
+pub const FLOQ_API_DOMAIN: &str = env!("FLOQ_API_DOMAIN");
+
 pub struct HTTPClient {
-    bearer_token: String,
-    employee_id: u32,
+    access_token: String,
+    employee_id: u16,
 }
 
 impl HTTPClient {
-    pub fn new(bearer_token: String, employee_id: u32) -> HTTPClient {
-        HTTPClient {
-            bearer_token,
-            employee_id,
+    pub fn from_user(user: &User) -> Self {
+        Self {
+            access_token: user.access_token.clone(),
+            employee_id: user.employee_id,
         }
     }
 }

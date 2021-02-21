@@ -14,6 +14,10 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    env:
+      FLOQ_DOMAIN: https://blank-test.floq.no
+      FLOQ_API_DOMAIN: https://api-blank-test.floq.no 
+
     steps:
     - uses: actions/checkout@v2
     - run: rustup component add clippy

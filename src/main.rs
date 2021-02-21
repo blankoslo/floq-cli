@@ -1,20 +1,21 @@
 mod http_client;
-
-use chrono::{Duration, NaiveDate};
-use dotenv::dotenv;
-use std::{env, fmt};
+mod user;
 
 use crate::http_client::projects::Project;
+
+use std::{error::Error, fmt};
+
+use chrono::{Duration, Utc};
 use clap::{App, AppSettings, Arg, ArgMatches};
 use http_client::HTTPClient;
-use std::error::Error;
 
-fn main() -> Result<(), Box<dyn Error> > {
+fn main() -> Result<(), Box<dyn Error>> {
     let matches = App::new("timetracker")
         .about("Timetracking in the terminal")
         .version("1.0")
         .author("The Rust Gang")
         .subcommand(App::new("demo").about("Get a demo of features not used elsewhere"))
+        .subcommand(App::new("auth").about("Authenticate again Floq"))
         .subcommand(
             App::new("projects")
                 .about("Lists name and code of projects")
@@ -41,22 +42,32 @@ fn main() -> Result<(), Box<dyn Error> > {
         )
         .get_matches();
 
-    let client = new_client();
-
     async_std::task::block_on(async {
-        match perform_command(matches, client).await {
+        match perform_command(matches).await {
             Ok(_) => Ok(()),
-            Err(e) => Err(e)
+            Err(e) => Err(e),
         }
     })
 }
 
-async fn perform_command(matches: ArgMatches, client: HTTPClient) -> Result<(), Box<dyn Error>> {
+async fn perform_command(matches: ArgMatches) -> Result<(), Box<dyn Error>> {
     match matches.subcommand() {
-        Some(("demo", _)) => demo(client).await,
-        Some(("projects", projects_matches)) => {
-            let all = projects_matches.is_present("all");
+        Some(("demo", _)) => {
+            let user = user::load_user_from_config().await?;
+            let client = HTTPClient::from_user(&user);
 
+            demo(client).await
+        }
+        Some(("auth", _)) => {
+            let user = user::authorize_user().await?;
+            println!("Hi {}!", user.name);
+            Ok(())
+        },
+        Some(("projects", projects_matches)) => {
+            let user = user::load_user_from_config().await?;
+            let client = HTTPClient::from_user(&user);
+
+            let all = projects_matches.is_present("all");
             if all {
                 print_all_projects(client).await
             } else {
@@ -89,15 +100,18 @@ async fn perform_command(matches: ArgMatches, client: HTTPClient) -> Result<(), 
     }
 }
 
-fn new_client() -> HTTPClient {
-    dotenv().unwrap();
-    let bearer_token = get_env_var("BEARER_TOKEN");
-    let employee_id = get_env_var("EMPLOYEE_ID").parse().unwrap();
+async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>> {
+    let projects = http_client.get_projects().await?;
+    println!("Projects:");
+    println!("{:#?}", projects);
 
-    HTTPClient::new(bearer_token, employee_id)
-}
+    let relevant_projects = http_client
+        .get_current_timetracked_projects_for_employee()
+        .await?;
+    println!();
+    println!("Relevant projects:");
+    println!("{:#?}", relevant_projects);
 
-async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn Error>> {
     let current_week_timetrackings = http_client.get_current_week_timetracking().await?;
     println!();
     println!("Current week timetracking:");
@@ -106,7 +120,7 @@ async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn Error>> {
     http_client
         .timetrack(
             "SVO1000".to_string(),
-            NaiveDate::from_ymd(2020, 10, 9),
+            Utc::now().date().naive_utc(),
             Duration::hours(7) + Duration::minutes(30),
         )
         .await?;
@@ -128,15 +142,12 @@ async fn print_relevant_projects(
     let relevant_projects = UIProjects(
         http_client
             .get_current_timetracked_projects_for_employee()
-            .await?
+            .await?,
     );
     println!("{}", relevant_projects);
     Ok(())
 }
 
-fn get_env_var(key: &str) -> String {
-    env::var(key).unwrap_or_else(|_| panic!("env var {} not defined", key))
-}
 struct UIProjects(Vec<Project>);
 
 impl fmt::Display for UIProjects {
@@ -145,20 +156,22 @@ impl fmt::Display for UIProjects {
 
         let padding = 7;
         let id_width = headings[0].len() + padding;
-        let customer_name_length = self.0.iter()
+        let customer_name_length = self
+            .0
+            .iter()
             .map(|p| p.customer.name.len())
             .max()
             .unwrap_or(0);
         let customer_width = customer_name_length + padding;
 
         writeln!(
-                f,
-               "{:id_width$} {:customer_width$} {}",
-               headings[0],
-               headings[1],
-               headings[2],
-               id_width = id_width,
-               customer_width = customer_width
+            f,
+            "{:id_width$} {:customer_width$} {}",
+            headings[0],
+            headings[1],
+            headings[2],
+            id_width = id_width,
+            customer_width = customer_width
         )?;
 
         for project in self.0.iter() {
