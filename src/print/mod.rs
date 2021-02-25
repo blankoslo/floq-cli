@@ -16,7 +16,7 @@ impl<'t, T>  TableMaker<'t, T> {
         self
     }
 
-    pub fn into_table(self, rows: &'t Vec<T>) -> Table {
+    pub fn into_table(self, rows: &'t [T]) -> Table {
         let mut table = Table::new();
 
         let format = format::FormatBuilder::new()
