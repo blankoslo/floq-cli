@@ -38,7 +38,8 @@ pub async fn authorize_user() -> Result<User, Box<dyn Error>> {
 }
 
 pub async fn load_user_from_config() -> Result<User, Box<dyn Error>> {
-    let config = config::load_config().await?
+    let config = config::load_config()
+        .await?
         .ok_or("No user configuration found")?;
 
     let authorized_user = auth::refresh_access_token(&config.refresh_token).await?;

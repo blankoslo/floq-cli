@@ -1,21 +1,14 @@
-use super::HTTPClient;
-use super::FLOQ_API_DOMAIN;
+use crate::http_client::HTTPClient;
+use crate::http_client::FLOQ_API_DOMAIN;
 
 use std::error::Error;
 
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use futures::join;
+use futures::future;
 use serde::{Deserialize, Serialize};
 use surf::Response;
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Timetrack {
-    pub id: String,
-    pub project: String,
-    pub customer: String,
-    pub date: NaiveDate,
-    pub time: Duration,
-}
+use super::Timetrack;
 
 #[derive(Serialize, Debug)]
 struct TimetrackedProjectsRequest {
@@ -34,8 +27,8 @@ struct TimetrackedProjectsResponse {
 impl TimetrackedProjectsResponse {
     fn to_timetracked_project(&self, date: NaiveDate) -> Timetrack {
         Timetrack {
-            id: self.id.clone(),
-            project: self.project.clone(),
+            project_id: self.id.clone(),
+            project_name: self.project.clone(),
             customer: self.customer.clone(),
             date,
             time: Duration::minutes(self.minutes as i64),
@@ -49,21 +42,28 @@ impl HTTPClient {
         let days_from_monday = today.weekday().num_days_from_monday();
 
         let monday = today.naive_local() - Duration::days(1) * days_from_monday as i32;
+        let sunday = monday + Duration::days(6);
 
-        let results = join!(
-            self.get_timetracking_for_day(monday),
-            self.get_timetracking_for_day(monday + Duration::days(1)),
-            self.get_timetracking_for_day(monday + Duration::days(2)),
-            self.get_timetracking_for_day(monday + Duration::days(3)),
-            self.get_timetracking_for_day(monday + Duration::days(4)),
-            self.get_timetracking_for_day(monday + Duration::days(5)),
-            self.get_timetracking_for_day(monday + Duration::days(6)),
-        );
-        let timetrackings: Vec<Vec<Timetrack>> = vec![
-            results.0?, results.1?, results.2?, results.3?, results.4?, results.5?, results.6?,
-        ];
+        self.get_timetracking_for_period(monday, sunday).await
+    }
 
-        Ok(timetrackings.into_iter().flatten().collect())
+    pub async fn get_timetracking_for_period(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<Timetrack>, Box<dyn Error>> {
+        let difference = to.signed_duration_since(from).num_days();
+
+        let results: Vec<Result<Vec<Timetrack>, Box<dyn Error>>> = future::join_all(
+            (0..=difference).map(|i| self.get_timetracking_for_day(from + Duration::days(i))),
+        )
+        .await
+        .into_iter()
+        .collect();
+
+        let results: Result<Vec<Vec<Timetrack>>, Box<dyn Error>> = results.into_iter().collect();
+
+        results.map(|values| values.into_iter().flatten().collect())
     }
 
     pub async fn get_timetracking_for_day(
@@ -97,10 +97,10 @@ impl HTTPClient {
 }
 
 #[derive(Serialize, Debug)]
-struct TimetrackRequest {
+struct TimetrackRequest<'a> {
     creator: u16,
     employee: u16,
-    project: String,
+    project: &'a str,
     date: NaiveDate,
     minutes: u16,
 }
@@ -108,7 +108,7 @@ struct TimetrackRequest {
 impl HTTPClient {
     pub async fn timetrack(
         &self,
-        project_id: String,
+        project_id: &str,
         date: NaiveDate,
         time: Duration,
     ) -> Result<(), Box<dyn Error>> {
@@ -129,7 +129,7 @@ impl HTTPClient {
             .send()
             .await?;
 
-        // unsure if this will return error on 4xx or 5xx status codes
+        // TODO handle 4xx and 5xx status codes
 
         Ok(())
     }

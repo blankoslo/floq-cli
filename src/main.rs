@@ -1,11 +1,14 @@
 mod http_client;
+mod print;
+mod timetrack;
 mod user;
 
 use crate::http_client::projects::Project;
+use crate::timetrack::Timetrack;
 
-use std::{error::Error, fmt};
+use std::error::Error;
 
-use chrono::{Duration, Utc};
+use chrono::{Duration, Local, NaiveDate};
 use clap::{App, AppSettings, Arg, ArgMatches};
 use http_client::HTTPClient;
 
@@ -14,30 +17,59 @@ fn main() -> Result<(), Box<dyn Error>> {
         .about("Timetracking in the terminal")
         .version("1.0")
         .author("The Rust Gang")
-        .subcommand(App::new("demo").about("Get a demo of features not used elsewhere"))
-        .subcommand(App::new("auth").about("Authenticate again Floq"))
+        .subcommand(App::new("auth").about("Authenticate against Floq"))
         .subcommand(
             App::new("projects")
                 .about("Lists name and code of projects")
                 .arg(
                     Arg::new("all")
-                        .about("Flag to list all project")
+                        .long("all")
                         .short('a')
-                        .long("all"),
+                        .about("Flag to list all project"),
                 ),
         )
-        .subcommand(App::new("history").about("Get the history for the current week"))
         .subcommand(
-            App::new("track")
+            App::new("history")
+                .about("Display tracked hours history for a time period")
+                .arg(
+                    Arg::new("from")
+                        .long("from")
+                        .short('f')
+                        .takes_value(true)
+                        .requires("to")
+                        .about(
+                            "First date to display tracked hours for, default is monday this week",
+                        ),
+                )
+                .arg(
+                    Arg::new("to")
+                        .long("to")
+                        .short('t')
+                        .takes_value(true)
+                        .requires("from")
+                        .about(
+                            "Last date to display tracked hours for, default is sunday this week",
+                        ),
+                ),
+        )
+        .subcommand(
+            App::new("timetrack")
                 .about("Track worked hours for a project")
                 .setting(AppSettings::ArgRequiredElseHelp)
-                .arg(Arg::new("project").about("the project to track").index(1))
+                .arg(Arg::new("project").about("Project to timetrack").index(1))
+                .arg(
+                    Arg::new("date")
+                        .long("date")
+                        .short('d')
+                        .default_value(&Local::now().date().format("%Y-%m-%d").to_string())
+                        .about("Day to timetrack, default value is today"),
+                )
                 .arg(
                     Arg::new("hours")
-                        .about("the number of hours to track")
-                        .index(2)
-                        .takes_value(true)
-                        .multiple(true),
+                        .long("hours")
+                        .short('h')
+                        .default_value("7.5")
+                        .about("Number of hours to timetrack, default value is 7.5"),
                 ),
         )
         .get_matches();
@@ -52,44 +84,80 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 async fn perform_command(matches: ArgMatches) -> Result<(), Box<dyn Error>> {
     match matches.subcommand() {
-        Some(("demo", _)) => {
-            let user = user::load_user_from_config().await?;
-            let client = HTTPClient::from_user(&user);
-
-            demo(client).await
-        }
         Some(("auth", _)) => {
             let user = user::authorize_user().await?;
             println!("Hi {}!", user.name);
             Ok(())
-        },
+        }
         Some(("projects", projects_matches)) => {
             let user = user::load_user_from_config().await?;
             let client = HTTPClient::from_user(&user);
 
             let all = projects_matches.is_present("all");
-            if all {
-                print_all_projects(client).await
+            let mut projects = if all {
+                client.get_projects().await?
             } else {
-                print_relevant_projects(client).await
-            }
-        }
-        Some(("history", _)) => {
-            println!("History is not implemented yet...");
+                client
+                    .get_current_timetracked_projects_for_employee()
+                    .await?
+            };
+            projects.sort_by(|p1, p2| p1.id.cmp(&p2.id));
+
+            let mut table_maker = print::TableMaker::new(vec!["ID", "CUSTOMER", "DESCRIPTION"]);
+            table_maker
+                .with(|p: &Project| p.id.clone())
+                .with(|p| p.customer.name.clone())
+                .with(|p| p.name.clone());
+            table_maker.into_table(&projects).printstd();
+
             Ok(())
         }
-        Some(("track", track_matches)) => {
-            let project_code = track_matches.value_of("project").unwrap();
-            let hours = track_matches
-                .values_of("hours")
-                .unwrap()
-                .collect::<Vec<_>>()
-                .join(", ");
+        Some(("history", matchers)) => {
+            let user = user::load_user_from_config().await?;
+            let client = HTTPClient::from_user(&user);
 
-            println!("Test {} {}", project_code, hours);
+            let from = matchers
+                .value_of("from")
+                .map(|from| from.parse::<NaiveDate>());
+            let to = matchers
+                .value_of("to")
+                .map(|from| from.parse::<NaiveDate>());
+
+            let mut timetrackings = if from.is_some() && to.is_some() {
+                client
+                    .get_timetracking_for_period(from.unwrap()?, to.unwrap()?)
+                    .await?
+            } else {
+                client.get_current_week_timetracking().await?
+            };
+            timetrackings.sort_by(|t0, t1| t0.date.cmp(&t1.date));
+
+            let mut table_maker = print::TableMaker::new(vec!["DATE", "PROJECT", "TIME"]);
+            table_maker
+                .with(|tt: &Timetrack| tt.date.format("%Y-%m-%d").to_string())
+                .with(|tt| tt.project_id.clone())
+                .with(|tt|
+                    format!(
+                        "{}.{}",
+                        tt.time.num_hours(),
+                        (tt.time - Duration::hours(tt.time.num_hours())).num_minutes() / 6,
+                    )
+                );
+            table_maker.into_table(&timetrackings).printstd();
+
             Ok(())
         }
+        Some(("timetrack", track_matches)) => {
+            let user = user::load_user_from_config().await?;
+            let client = HTTPClient::from_user(&user);
 
+            let project_id = track_matches.value_of("project").unwrap();
+            let date: NaiveDate = track_matches.value_of("date").unwrap().parse()?;
+            let hours: f32 = track_matches.value_of("hours").unwrap().parse()?;
+            let time = Duration::minutes((hours * 60.0) as i64);
+
+            client.timetrack(project_id, date, time).await.map(|_| ())
+        }
         Some((_, _)) => {
             unreachable!("Unknown commands should be handled by the library");
         }
@@ -97,94 +165,5 @@ async fn perform_command(matches: ArgMatches) -> Result<(), Box<dyn Error>> {
             println!("No subcommand was used");
             Ok(())
         } // If all subcommands are defined above, anything else is unreachable!()
-    }
-}
-
-async fn demo(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>> {
-    let projects = http_client.get_projects().await?;
-    println!("Projects:");
-    println!("{:#?}", projects);
-
-    let relevant_projects = http_client
-        .get_current_timetracked_projects_for_employee()
-        .await?;
-    println!();
-    println!("Relevant projects:");
-    println!("{:#?}", relevant_projects);
-
-    let current_week_timetrackings = http_client.get_current_week_timetracking().await?;
-    println!();
-    println!("Current week timetracking:");
-    println!("{:#?}", current_week_timetrackings);
-
-    http_client
-        .timetrack(
-            "SVO1000".to_string(),
-            Utc::now().date().naive_utc(),
-            Duration::hours(7) + Duration::minutes(30),
-        )
-        .await?;
-
-    println!("Done timetracking!");
-
-    Ok(())
-}
-
-async fn print_all_projects(http_client: HTTPClient) -> Result<(), Box<dyn std::error::Error>> {
-    let ui_projects = UIProjects(http_client.get_projects().await?);
-    println!("{}", ui_projects);
-    Ok(())
-}
-
-async fn print_relevant_projects(
-    http_client: HTTPClient,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let relevant_projects = UIProjects(
-        http_client
-            .get_current_timetracked_projects_for_employee()
-            .await?,
-    );
-    println!("{}", relevant_projects);
-    Ok(())
-}
-
-struct UIProjects(Vec<Project>);
-
-impl fmt::Display for UIProjects {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let headings = ["PROSJEKT KODE", "KUNDE", "BESKRIVELSE"];
-
-        let padding = 7;
-        let id_width = headings[0].len() + padding;
-        let customer_name_length = self
-            .0
-            .iter()
-            .map(|p| p.customer.name.len())
-            .max()
-            .unwrap_or(0);
-        let customer_width = customer_name_length + padding;
-
-        writeln!(
-            f,
-            "{:id_width$} {:customer_width$} {}",
-            headings[0],
-            headings[1],
-            headings[2],
-            id_width = id_width,
-            customer_width = customer_width
-        )?;
-
-        for project in self.0.iter() {
-            writeln!(
-                f,
-                "{:id_width$} {:customer_width$} {}",
-                project.id,
-                project.customer.name,
-                project.name,
-                id_width = id_width,
-                customer_width = customer_width
-            )?;
-        }
-        writeln!(f)
     }
 }
