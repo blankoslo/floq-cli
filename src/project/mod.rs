@@ -1,11 +1,76 @@
-use std::error::Error;
+use crate::cmd::Subcommand;
+use crate::http_client::HTTPClient;
+use crate::http_client::FLOQ_API_DOMAIN;
+use crate::print::TableMaker;
+use crate::user;
 
-use super::HTTPClient;
-use super::FLOQ_API_DOMAIN;
+use std::{error::Error, io::Write};
 
+use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc};
+use clap::{App, Arg, ArgMatches};
 use serde::{Deserialize, Serialize};
 use surf::Response;
+
+const SUBCOMMAND_NAME: &'static str = "prosjekter";
+
+pub fn subcommand_app<'help>() -> App<'help> {
+    App::new(SUBCOMMAND_NAME)
+        .about("Vis prosjekter")
+        .arg(
+            Arg::new("mine")
+                .long("mine")
+                .short('m')
+                .default_value("true")
+                .conflicts_with("alle")
+                .about("Vis prosjekter du har ført timer på de siste to ukene"),
+        )
+        .arg(
+            Arg::new("alle")
+                .long("alle")
+                .short('a')
+                .conflicts_with("mine")
+                .about("Vis alle prosjekter"),
+        )
+}
+
+pub fn subcommand<T: Write + Send>() -> Box<dyn Subcommand<T>> {
+    Box::new(ProjectsSubcommand {})
+}
+
+struct ProjectsSubcommand;
+
+#[async_trait(?Send)]
+impl<T: Write + Send> Subcommand<T> for ProjectsSubcommand {
+    fn matches(&self, matches: &ArgMatches) -> bool {
+        matches.subcommand_name() == Some(SUBCOMMAND_NAME)
+    }
+
+    async fn execute(&self, matches: &clap::ArgMatches, out: &mut T) -> Result<(), Box<dyn Error>> {
+        let user = user::load_user_from_config().await?;
+        let client = HTTPClient::from_user(&user);
+
+        let all = matches.is_present("alle");
+        let mut projects = if all {
+            client.get_projects().await?
+        } else {
+            client
+                .get_current_timestamped_projects_for_employee()
+                .await?
+        };
+        projects.sort_by(|p1, p2| p1.id.cmp(&p2.id));
+
+        let mut table_maker = TableMaker::new();
+        table_maker.static_titles(vec!["ID", "KUNDE", "BESKRIVELSE"]);
+        table_maker
+            .with(Box::new(|p: &Project| p.id.clone()))
+            .with(Box::new(|p| p.customer.name.clone()))
+            .with(Box::new(|p| p.name.clone()));
+        table_maker.into_table(&projects).print(out)?;
+
+        Ok(())
+    }
+}
 
 #[derive(Deserialize, Debug)]
 pub struct Project {
@@ -69,16 +134,16 @@ impl ProjectForEmployeeResponse {
 }
 
 impl HTTPClient {
-    pub async fn get_current_timetracked_projects_for_employee(
+    pub async fn get_current_timestamped_projects_for_employee(
         &self,
     ) -> Result<Vec<Project>, Box<dyn Error>> {
         let today = Utc::now().date();
 
-        self.get_timetracked_projects_for_employee(today.naive_local())
+        self.get_timestamped_projects_for_employee(today.naive_local())
             .await
     }
 
-    pub async fn get_timetracked_projects_for_employee(
+    pub async fn get_timestamped_projects_for_employee(
         &self,
         date: NaiveDate,
     ) -> Result<Vec<Project>, Box<dyn Error>> {

@@ -3,6 +3,7 @@ use std::error::Error;
 
 use async_std::fs;
 
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -10,6 +11,8 @@ pub struct UserConfig {
     pub employee_id: u16,
     pub email: String,
     pub name: String,
+    pub access_token: String,
+    pub access_token_expires: NaiveDateTime,
     pub refresh_token: String,
 }
 
@@ -43,7 +46,7 @@ pub async fn update_config(config: &UserConfig) -> Result<(), Box<dyn Error>> {
         Ok(()) => (),
         Err(e) => match e.kind() {
             std::io::ErrorKind::AlreadyExists => (),
-            e => panic!(e),
+            _ => return Err(Box::new(e)),
         },
     }
 

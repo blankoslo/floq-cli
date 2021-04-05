@@ -1,16 +1,13 @@
-pub mod projects;
-pub mod timetrack;
+use crate::user::User;
 
 use std::env;
-
-use crate::user::User;
 
 pub const FLOQ_DOMAIN: &str = env!("FLOQ_DOMAIN");
 pub const FLOQ_API_DOMAIN: &str = env!("FLOQ_API_DOMAIN");
 
 pub struct HTTPClient {
-    access_token: String,
-    employee_id: u16,
+    pub access_token: String,
+    pub employee_id: u16,
 }
 
 impl HTTPClient {

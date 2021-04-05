@@ -1,10 +1,9 @@
+use super::Employee;
+use crate::http_client::FLOQ_API_DOMAIN;
+
 use std::error::Error;
 
 use serde::Deserialize;
-
-use super::Employee;
-
-use crate::http_client::FLOQ_API_DOMAIN;
 
 #[derive(Deserialize)]
 struct EmployeeResponse {

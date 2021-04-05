@@ -21,7 +21,7 @@ pub async fn authorize() -> Result<AuthorizedUser, Box<dyn Error>> {
         match handle_callback(request) {
             Ok(tokens) => {
                 tx.send(Ok(tokens)).unwrap();
-                Response::text("Thx m8!\n\n(You can close this tab)")
+                Response::text("Flott, da er du logget inn!\n\n(Bare å lukke denne fanen)")
             },
             Err(e) => {
                 eprintln!("Error on handling callback from Floq Auth: {}", e);
@@ -34,7 +34,7 @@ pub async fn authorize() -> Result<AuthorizedUser, Box<dyn Error>> {
 
     let port = server.server_addr().port();
 
-    println!("Please open this link in your favorite browser, if you please:");
+    println!("Venligst åpne denne lenken i nettleseren din:");
     println!("{}/login/oauth?to=http://localhost:{}", FLOQ_DOMAIN, port);
 
     loop {
@@ -101,7 +101,7 @@ struct RefreshAccessTokenResponse {
 }
 
 impl RefreshAccessTokenResponse {
-    fn into_oauth_token(self, refresh_token: &str) -> AuthorizedUser {
+    fn into_authorized_user(self, refresh_token: &str) -> AuthorizedUser {
         AuthorizedUser {
             access_token: self.access_token,
             refresh_token: refresh_token.to_string(),
@@ -127,6 +127,6 @@ pub async fn refresh_access_token(refresh_token: &str) -> Result<AuthorizedUser,
             e
         })?;
 
-        Ok(tokens.into_oauth_token(refresh_token))
+        Ok(tokens.into_authorized_user(refresh_token))
     }
 }
