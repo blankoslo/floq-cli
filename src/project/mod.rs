@@ -1,5 +1,5 @@
 use crate::cmd::Subcommand;
-use crate::http_client::HTTPClient;
+use crate::http_client::HttpClient;
 use crate::http_client::FLOQ_API_DOMAIN;
 use crate::print::TableMaker;
 use crate::user;
@@ -12,7 +12,7 @@ use clap::{App, Arg, ArgMatches};
 use serde::{Deserialize, Serialize};
 use surf::Response;
 
-const SUBCOMMAND_NAME: &'static str = "prosjekter";
+const SUBCOMMAND_NAME: &str = "prosjekter";
 
 pub fn subcommand_app<'help>() -> App<'help> {
     App::new(SUBCOMMAND_NAME)
@@ -48,7 +48,7 @@ impl<T: Write + Send> Subcommand<T> for ProjectsSubcommand {
 
     async fn execute(&self, matches: &clap::ArgMatches, out: &mut T) -> Result<(), Box<dyn Error>> {
         let user = user::load_user_from_config().await?;
-        let client = HTTPClient::from_user(&user);
+        let client = HttpClient::from_user(&user);
 
         let all = matches.is_present("alle");
         let mut projects = if all {
@@ -86,7 +86,7 @@ pub struct Customer {
     pub name: String,
 }
 
-impl HTTPClient {
+impl HttpClient {
     pub async fn get_projects(&self) -> Result<Vec<Project>, Box<dyn Error>> {
         let url = format!(
             "{}/projects?select=id,name,active,customer{{id,name}}",
@@ -133,7 +133,7 @@ impl ProjectForEmployeeResponse {
     }
 }
 
-impl HTTPClient {
+impl HttpClient {
     pub async fn get_current_timestamped_projects_for_employee(
         &self,
     ) -> Result<Vec<Project>, Box<dyn Error>> {

@@ -1,5 +1,5 @@
 use super::{ProjectTimestamp, Timestamp};
-use crate::http_client::HTTPClient;
+use crate::http_client::HttpClient;
 use crate::http_client::FLOQ_API_DOMAIN;
 
 use std::error::Error;
@@ -42,7 +42,7 @@ impl TimestampedProjectsResponse {
     }
 }
 
-impl HTTPClient {
+impl HttpClient {
     pub async fn get_timestamp_on_project_for_date(
         &self,
         project_id: &str,
@@ -126,7 +126,7 @@ struct TimestampRequest<'a> {
     minutes: i64,
 }
 
-impl HTTPClient {
+impl HttpClient {
     pub async fn add_timestamp(
         &self,
         project_id: &str,

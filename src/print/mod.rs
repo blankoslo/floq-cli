@@ -40,7 +40,7 @@ impl<T> TableMaker<T> {
             .collect();
         table.set_titles(Row::new(titles));
 
-        rows.into_iter()
+        rows.iter()
             .map(|t| {
                 extractors
                     .iter()

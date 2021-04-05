@@ -1,4 +1,4 @@
-use crate::{cmd::Subcommand, http_client::HTTPClient, print, user};
+use crate::{cmd::Subcommand, http_client::HttpClient, print, user};
 
 use std::{collections::HashMap, error::Error, fmt::Display, io::Write};
 
@@ -8,7 +8,7 @@ use clap::{App, Arg, ArgMatches};
 
 mod http;
 
-const SUBCOMMAND_NAME: &'static str = "timeføring";
+const SUBCOMMAND_NAME: &str = "timeføring";
 
 pub fn subcommand_app<'help>() -> App<'help> {
     App::new("timeføring")
@@ -74,7 +74,7 @@ impl<T: Write + Send> Subcommand<T> for TimestampSubcommand {
 
     async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<(), Box<dyn Error>> {
         let user = user::load_user_from_config().await?;
-        let client = HTTPClient::from_user(&user);
+        let client = HttpClient::from_user(&user);
 
         if (matches.is_present("historikk")) {
             execute_history(matches, out, client).await
@@ -84,7 +84,7 @@ impl<T: Write + Send> Subcommand<T> for TimestampSubcommand {
     }
 }
 
-async fn execute_timestamp<T: Write + Send>(matches: &ArgMatches, out: &mut T, client: HTTPClient) -> Result<(), Box<dyn Error>> {
+async fn execute_timestamp<T: Write + Send>(matches: &ArgMatches, out: &mut T, client: HttpClient) -> Result<(), Box<dyn Error>> {
     let project_id = matches.value_of("prosjekt").unwrap();
     let date: NaiveDate = matches.value_of("dato")
         .map(|date| date.parse::<NaiveDate>())
@@ -112,7 +112,7 @@ async fn execute_timestamp<T: Write + Send>(matches: &ArgMatches, out: &mut T, c
     }   
 }
 
-async fn execute_history<T: Write + Send>(matches: &ArgMatches, out: &mut T, client: HTTPClient) -> Result<(), Box<dyn Error>> {
+async fn execute_history<T: Write + Send>(matches: &ArgMatches, out: &mut T, client: HttpClient) -> Result<(), Box<dyn Error>> {
     if matches.is_present("dato") {
         write!(out, "{:?}", matches)?;
 
@@ -172,7 +172,7 @@ async fn execute_history<T: Write + Send>(matches: &ArgMatches, out: &mut T, cli
             table_maker.with(Box::new(move |pt| {
                 pt.find_timestamp_for_date(&d)
                     .map(|ts| TimestampHours::from(ts.time).to_string())
-                    .unwrap_or(String::new())
+                    .unwrap_or_default()
             }));
         });
 
@@ -246,7 +246,7 @@ impl Display for TimestampHours {
 }
 
 pub async fn get_timestamps_for_period(
-    client: HTTPClient,
+    client: HttpClient,
     from: NaiveDate,
     to: NaiveDate,
 ) -> Result<Vec<ProjectTimestamps>, Box<dyn Error>> {

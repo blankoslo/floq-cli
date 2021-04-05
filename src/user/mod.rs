@@ -10,7 +10,7 @@ mod auth;
 mod config;
 mod http;
 
-const SUBCOMMAND_NAME: &'static str = "logg-inn";
+const SUBCOMMAND_NAME: &str = "logg-inn";
 
 pub fn subcommand_app<'help>() -> App<'help> {
     App::new(SUBCOMMAND_NAME).about("Logg inn i Floq")
