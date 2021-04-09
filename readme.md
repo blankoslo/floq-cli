@@ -10,19 +10,19 @@ These are used to select what environment you would like to connect to.
 Blank (prod)
 ```
 export FLOQ_DOMAIN=https://inni.blank.no
-export FLOQ_DOMAIN=https://api-blank.floq.no
+export FLOQ_API_DOMAIN=https://api-blank.floq.no
 ```
 
 Blank (test)
 ```
 export FLOQ_DOMAIN=https://blank-test.floq.no
-export FLOQ_DOMAIN=https://api-blank-test.floq.no
+export FLOQ_API_DOMAIN=https://api-blank-test.floq.no
 ```
 
 FOLQ (prod)
 ```
 export FLOQ_DOMAIN=https://folq.floq.no
-export FLOQ_DOMAIN=https://api-folq.floq.no
+export FLOQ_API_DOMAIN=https://api-folq.floq.no
 ```
 
 ## Compiling
