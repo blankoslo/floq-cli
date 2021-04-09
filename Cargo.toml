@@ -1,5 +1,5 @@
 [package]
-name = "floq-cli"
+name = "floq"
 version = "0.1.0"
 authors = ["emil daijiro <eg@blank.no>"]
 edition = "2018"

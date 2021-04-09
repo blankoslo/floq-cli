@@ -14,14 +14,7 @@ const SUBCOMMAND_NAME: &str = "timeføring";
 pub fn subcommand_app<'help>() -> App<'help> {
     App::new(SUBCOMMAND_NAME)
         .about("Før timer på et prosjekt")
-        .arg(Arg::new("prosjekt").about("Prosjektet du ønsker å føre timer på").index(1).required_unless_present("historikk"))
-        .arg(
-            Arg::new("dato")
-                .long("dato")
-                .short('d')
-                .takes_value(true)
-                .about("Dagen det gjelder, settes til i dag hvis utelatt. Eksempel \"2021-03-01\""),
-        )
+        .arg(Arg::new("prosjekt").about("Prosjektet du ønsker å føre timer på").index(1))
         .arg(
             Arg::new("timer")
                 .long("timer")
@@ -31,13 +24,20 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .about("Antall timer du ønsker å føre")
         )
         .arg(
+            Arg::new("dato")
+                .long("dato")
+                .short('d')
+                .takes_value(true)
+                .about("Dagen det skal føres timer på, settes til i dag hvis utelatt. Eksempel \"2021-03-01\""),
+        )
+        .arg(
             Arg::new("fra")
                 .long("fra")
                 .takes_value(true)
                 .requires("til")
                 .conflicts_with("dato")
                 .about(
-                    "Første dagen å vise timer for, settes til mandag denne uken hvis utelatt. Eksempel \"2021-03-01\" ",
+                    "Brukes samme med --til for å føre timer i en periode, er inklusiv. Eksempel \"2021-03-01\" ",
                 ),
         )
         .arg(
@@ -47,32 +47,58 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .requires("fra")
                 .conflicts_with("dato")
                 .about(
-                    "Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt. Eksempel \"2021-03-05\"",
+                    "Brukes samme med --fra for å føre timer i en periode, er inklusiv. Eksempel \"2021-03-05\"",
                 ),
         )
-        .arg(
-            Arg::new("historikk")
-                .long("historikk")
-                .short('h')
-                .conflicts_with("timer")
+        .subcommand(
+            App::new("historikk")
                 .about(
-                    "Vis timeføring, periode kan velges parametere med \"dato\", med \"fra\" og \"til\" eller ingen for å vise denne uken"
+                    "Vis timeføring, periode kan velges ved å sette \"--dato\", eller med \"--fra\" og \"--til\" eller ingen av dem for å vise denne uken"
                 )
-        )
-        .arg(
-            Arg::new("transponer")
-                .long("transponer")
-                .requires("historikk")
-                .about(
-                    "Transponer tabellen til historikk slik at rader går fra å være per prosjekt til per dag og prosjekt"
+                .arg(
+                    Arg::new("dato")
+                        .long("dato")
+                        .short('d')
+                        .takes_value(true)
+                        .about("Dagen du ønsker å vise timer for. Eksempel \"2021-03-01\""),
                 )
-        )
-        .arg(
-            Arg::new("deaktiver-auto-transponering")
-                .long("deaktiver-auto-transponering")
-                .requires("historikk")
-                .about(
-                    "Tabellen til historikk transponeres slik at rader går fra å være per prosjekt til per dag og prosjekt, hvis antall dager er større enn én uke"
+                .arg(
+                    Arg::new("fra")
+                        .long("fra")
+                        .takes_value(true)
+                        .requires("til")
+                        .conflicts_with("dato")
+                        .about(
+                            "Første dagen å vise timer for, settes til mandag denne uken hvis utelatt. Eksempel \"2021-03-01\" ",
+                        ),
+                )
+                .arg(
+                    Arg::new("til")
+                        .long("til")
+                        .takes_value(true)
+                        .requires("fra")
+                        .conflicts_with("dato")
+                        .about(
+                            "Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt. Eksempel \"2021-03-05\"",
+                        ),
+                )
+                .arg(
+                    Arg::new("snu-tabell")
+                        .long("snu-tabell")
+                        .about(
+"Snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
+Dette blir gjort automatisk hvis det skal vises timer for mer enn én uke."
+                        )
+                        .conflicts_with("ikke-snu-tabell")
+                )
+                .arg(
+                    Arg::new("ikke-snu-tabell")
+                        .long("ikke-snu-tabell")
+                        .about(
+"Ikke snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
+Stopper det fra å bli gjort automatisk hvis det skal vises timer for mer enn én uke."
+                        )
+                        .conflicts_with("snu-tabell")
                 )
         )
 }
@@ -93,11 +119,74 @@ impl<T: Write + Send> Subcommand<T> for TimestampSubcommand {
         let user = user::load_user_from_config().await?;
         let client = HttpClient::from_user(&user);
 
-        if (matches.is_present("historikk")) {
-            execute_history(matches, out, client).await
-        } else {
-            execute_timestamp(matches, out, client).await
+        match matches.subcommand() {
+            None => execute_timestamp(matches, out, client).await,
+            Some(("historikk", matches)) => execute_history(matches, out, client).await,
+            _ => unreachable!("Unknown commands should be handled by the library"),
         }
+    }
+}
+
+pub struct ProjectTimestamp {
+    pub project_id: String,
+    pub project_name: String,
+    pub customer_name: String,
+    pub timestamp: Timestamp,
+}
+
+impl ProjectTimestamp {
+    fn into_project_timestamps(self) -> ProjectTimestamps {
+        ProjectTimestamps {
+            project_id: self.project_id,
+            project_name: self.project_name,
+            customer_name: self.customer_name,
+            timestamps: vec![self.timestamp],
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct ProjectTimestamps {
+    pub project_id: String,
+    pub project_name: String,
+    pub customer_name: String,
+    pub timestamps: Vec<Timestamp>,
+}
+
+impl ProjectTimestamps {
+    pub fn find_timestamp_for_date(&self, date: &NaiveDate) -> Option<&Timestamp> {
+        self.timestamps.iter().find(|t| t.date == *date)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct Timestamp {
+    pub date: NaiveDate,
+    pub time: Duration,
+}
+
+impl Timestamp {
+    pub fn is_time_zero(&self) -> bool {
+        self.time == Duration::zero()
+    }
+}
+
+pub struct TimestampHours<'a>(&'a Duration);
+
+impl<'a> TimestampHours<'a> {
+    fn new(duration: &'a Duration) -> Self {
+        Self(duration)
+    }
+}
+
+impl<'a> Display for TimestampHours<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}.{}t",
+            self.0.num_hours(),
+            (*self.0 - Duration::hours(self.0.num_hours())).num_minutes() / 6
+        )
     }
 }
 
@@ -204,9 +293,10 @@ async fn execute_history<T: Write + Send>(
                 Ok(sunday.naive_local())
             })?;
 
-        let transpose = matches.is_present("transponer");
-        let disable_auto_transposing = matches.is_present("deaktiver-auto-transponering");
-        if transpose || (to - from > Duration::days(6) && !disable_auto_transposing) {
+        // only one of these two can be true, if none are then we let the number of days in period decide
+        let turn_table = matches.is_present("snu-tabell");
+        let dont_turn_table = matches.is_present("ikke-snu-tabell");
+        if turn_table || (!dont_turn_table && to - from > Duration::days(6)) {
             // auto transpose if more than one week
             let mut timestamps = client.get_timestamps_for_period(from, to).await?;
             timestamps.sort_by(|t0, t1| t0.timestamp.date.cmp(&t1.timestamp.date));
@@ -267,69 +357,6 @@ async fn execute_history<T: Write + Send>(
     }
 
     Ok(())
-}
-
-pub struct ProjectTimestamp {
-    pub project_id: String,
-    pub project_name: String,
-    pub customer_name: String,
-    pub timestamp: Timestamp,
-}
-
-impl ProjectTimestamp {
-    fn into_project_timestamps(self) -> ProjectTimestamps {
-        ProjectTimestamps {
-            project_id: self.project_id,
-            project_name: self.project_name,
-            customer_name: self.customer_name,
-            timestamps: vec![self.timestamp],
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct ProjectTimestamps {
-    pub project_id: String,
-    pub project_name: String,
-    pub customer_name: String,
-    pub timestamps: Vec<Timestamp>,
-}
-
-impl ProjectTimestamps {
-    pub fn find_timestamp_for_date(&self, date: &NaiveDate) -> Option<&Timestamp> {
-        self.timestamps.iter().find(|t| t.date == *date)
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Timestamp {
-    pub date: NaiveDate,
-    pub time: Duration,
-}
-
-impl Timestamp {
-    pub fn is_time_zero(&self) -> bool {
-        self.time == Duration::zero()
-    }
-}
-
-pub struct TimestampHours<'a>(&'a Duration);
-
-impl<'a> TimestampHours<'a> {
-    fn new(duration: &'a Duration) -> Self {
-        Self(duration)
-    }
-}
-
-impl<'a> Display for TimestampHours<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}.{}t",
-            self.0.num_hours(),
-            (*self.0 - Duration::hours(self.0.num_hours())).num_minutes() / 6
-        )
-    }
 }
 
 pub async fn get_timestamps_for_period(

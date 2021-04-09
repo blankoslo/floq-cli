@@ -1,5 +1,5 @@
-use std::env;
 use std::error::Error;
+use std::{env, io::ErrorKind};
 
 use async_std::fs;
 
@@ -29,7 +29,7 @@ pub async fn load_config() -> Result<Option<UserConfig>, Box<dyn Error>> {
         .await
         .and_then(|s| toml::from_str::<UserConfig>(s.as_str()).map_err(|e| e.into()))
         .map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => Ok(None),
+            ErrorKind::NotFound => Ok(None),
             _ => Err(e),
         });
 
@@ -45,7 +45,7 @@ pub async fn update_config(config: &UserConfig) -> Result<(), Box<dyn Error>> {
     match fs::create_dir(folder_path()).await {
         Ok(()) => (),
         Err(e) => match e.kind() {
-            std::io::ErrorKind::AlreadyExists => (),
+            ErrorKind::AlreadyExists => (),
             _ => return Err(Box::new(e)),
         },
     }
@@ -53,4 +53,18 @@ pub async fn update_config(config: &UserConfig) -> Result<(), Box<dyn Error>> {
     fs::write(file_path(), file_content)
         .await
         .map_err(|e| e.into())
+}
+
+pub async fn delete_config() -> Result<(), Box<dyn Error>> {
+    let r = fs::remove_file(file_path())
+        .await
+        .map_err(|e| match e.kind() {
+            ErrorKind::NotFound => Ok(()),
+            _ => Err(e),
+        });
+
+    match r {
+        Ok(_) => Ok(()),
+        Err(e) => e.map_err(|e| e.into()),
+    }
 }
