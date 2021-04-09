@@ -4,16 +4,21 @@ use std::{error::Error, io::Write};
 
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
-use clap::{App, ArgMatches};
+use clap::{App, Arg, ArgMatches};
 
 mod auth;
 mod config;
 mod http;
 
-const SUBCOMMAND_NAME: &str = "logg-inn";
+const SUBCOMMAND_NAME: &str = "bruker";
 
 pub fn subcommand_app<'help>() -> App<'help> {
-    App::new(SUBCOMMAND_NAME).about("Logg inn i Floq")
+    App::new(SUBCOMMAND_NAME).about("Brukerhåndtering").arg(
+        Arg::new("logg-inn")
+            .required(true)
+            .about("Logg inn i FLOQ")
+            .index(1),
+    )
 }
 
 pub fn subcommand<T: Write + Send>() -> Box<dyn Subcommand<T>> {
@@ -28,10 +33,14 @@ impl<T: Write + Send> Subcommand<T> for LoginSubcommand {
         matches.subcommand_name() == Some(SUBCOMMAND_NAME)
     }
 
-    async fn execute(&self, _matches: &ArgMatches, out: &mut T) -> Result<(), Box<dyn Error>> {
-        let user = authorize_user().await?;
-        write!(out, "Hei {}!", user.name)?;
-        Ok(())
+    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<(), Box<dyn Error>> {
+        if matches.is_present("logg-inn") {
+            let user = authorize_user().await?;
+            write!(out, "Hei {}!", user.name)?;
+            Ok(())
+        } else {
+            unreachable!("Unknown commands should be handled by the library")
+        }
     }
 }
 

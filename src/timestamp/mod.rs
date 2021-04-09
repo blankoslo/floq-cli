@@ -12,7 +12,7 @@ mod http;
 const SUBCOMMAND_NAME: &str = "timeføring";
 
 pub fn subcommand_app<'help>() -> App<'help> {
-    App::new("timeføring")
+    App::new(SUBCOMMAND_NAME)
         .about("Før timer på et prosjekt")
         .arg(Arg::new("prosjekt").about("Prosjektet du ønsker å føre timer på").index(1).required_unless_present("historikk"))
         .arg(
@@ -206,7 +206,8 @@ async fn execute_history<T: Write + Send>(
 
         let transpose = matches.is_present("transponer");
         let disable_auto_transposing = matches.is_present("deaktiver-auto-transponering");
-        if transpose || (to - from > Duration::days(6) && !disable_auto_transposing) { // auto transpose if more than one week
+        if transpose || (to - from > Duration::days(6) && !disable_auto_transposing) {
+            // auto transpose if more than one week
             let mut timestamps = client.get_timestamps_for_period(from, to).await?;
             timestamps.sort_by(|t0, t1| t0.timestamp.date.cmp(&t1.timestamp.date));
 
