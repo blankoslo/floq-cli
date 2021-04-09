@@ -3,8 +3,9 @@ use crate::{cmd::Subcommand, http_client::HttpClient, print, user};
 use std::{collections::HashMap, error::Error, fmt::Display, io::Write};
 
 use async_trait::async_trait;
-use chrono::{Datelike, Duration, NaiveDate, Utc};
+use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
 use clap::{App, Arg, ArgMatches};
+use futures::{stream::FuturesUnordered, StreamExt};
 
 mod http;
 
@@ -19,7 +20,6 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .long("dato")
                 .short('d')
                 .takes_value(true)
-                .conflicts_with_all(&["fra", "til"])
                 .about("Dagen det gjelder, settes til i dag hvis utelatt. Eksempel \"2021-03-01\""),
         )
         .arg(
@@ -54,8 +54,25 @@ pub fn subcommand_app<'help>() -> App<'help> {
             Arg::new("historikk")
                 .long("historikk")
                 .short('h')
+                .conflicts_with("timer")
                 .about(
                     "Vis timeføring, periode kan velges parametere med \"dato\", med \"fra\" og \"til\" eller ingen for å vise denne uken"
+                )
+        )
+        .arg(
+            Arg::new("transponer")
+                .long("transponer")
+                .requires("historikk")
+                .about(
+                    "Transponer tabellen til historikk slik at rader går fra å være per prosjekt til per dag og prosjekt"
+                )
+        )
+        .arg(
+            Arg::new("deaktiver-auto-transponering")
+                .long("deaktiver-auto-transponering")
+                .requires("historikk")
+                .about(
+                    "Tabellen til historikk transponeres slik at rader går fra å være per prosjekt til per dag og prosjekt, hvis antall dager er større enn én uke"
                 )
         )
 }
@@ -84,38 +101,70 @@ impl<T: Write + Send> Subcommand<T> for TimestampSubcommand {
     }
 }
 
-async fn execute_timestamp<T: Write + Send>(matches: &ArgMatches, out: &mut T, client: HttpClient) -> Result<(), Box<dyn Error>> {
+async fn execute_timestamp<T: Write + Send>(
+    matches: &ArgMatches,
+    _out: &mut T,
+    client: HttpClient,
+) -> Result<(), Box<dyn Error>> {
     let project_id = matches.value_of("prosjekt").unwrap();
-    let date: NaiveDate = matches.value_of("dato")
-        .map(|date| date.parse::<NaiveDate>())
-        .unwrap_or_else(|| Ok(Utc::now().date().naive_local()))?;
+
     let hours: f32 = matches.value_of("timer").unwrap().parse()?;
     let time = Duration::minutes((hours * 60.0) as i64);
+    if time > Duration::days(1) {
+        return Err(format!("Det er ikke mulig å føre {} timer på én dag", hours).into());
+    }
 
+    let dates = if matches.is_present("fra") {
+        let from: NaiveDate = matches.value_of("fra").unwrap().parse::<NaiveDate>()?;
+        let to: NaiveDate = matches.value_of("til").unwrap().parse::<NaiveDate>()?;
+
+        from.iter_days().take_while(|d| d <= &to).collect()
+    } else {
+        let date: NaiveDate = matches
+            .value_of("dato")
+            .map(|date| date.parse::<NaiveDate>())
+            .unwrap_or_else(|| Ok(Utc::now().date().naive_local()))?;
+
+        vec![date]
+    };
+
+    let mut futures: FuturesUnordered<_> = dates
+        .iter()
+        .map(|date| set_timetsamp(project_id, &time, date, &client))
+        .collect();
+    while let Some(r) = futures.next().await {
+        r?
+    }
+    Ok(())
+}
+
+async fn set_timetsamp(
+    project_id: &str,
+    time: &Duration,
+    date: &NaiveDate,
+    client: &HttpClient,
+) -> Result<(), Box<dyn Error>> {
     let current_time = client
         .get_timestamp_on_project_for_date(project_id, date)
         .await?;
-    let time_diff = time - current_time;
+    let time_diff = *time - current_time;
 
     if time_diff.is_zero() {
-        write!(
-            out,
-            "Ingen endring ble gjort siden det allerede er timeført {} den dagen",
-            TimestampHours::from(time)
-        )?;
         Ok(())
     } else {
         client
             .add_timestamp(project_id, date, time_diff)
             .await
             .map(|_| ())
-    }   
+    }
 }
 
-async fn execute_history<T: Write + Send>(matches: &ArgMatches, out: &mut T, client: HttpClient) -> Result<(), Box<dyn Error>> {
+async fn execute_history<T: Write + Send>(
+    matches: &ArgMatches,
+    out: &mut T,
+    client: HttpClient,
+) -> Result<(), Box<dyn Error>> {
     if matches.is_present("dato") {
-        write!(out, "{:?}", matches)?;
-
         let date = matches.value_of("dato").unwrap().parse()?;
 
         let mut timestamps = client.get_timestamps_for_date(date).await?;
@@ -125,11 +174,13 @@ async fn execute_history<T: Write + Send>(matches: &ArgMatches, out: &mut T, cli
 
         table_maker.titles(vec![
             "PROSJEKT".to_string(),
-            date.format("%Y-%m-%d (%a)").to_string()
+            date.format("%Y-%m-%d (%a)").to_string(),
         ]);
-    
+
         table_maker.with(Box::new(|pt: &ProjectTimestamp| pt.project_id.clone()));
-        table_maker.with(Box::new(move |pt| TimestampHours::from(pt.timestamp.time).to_string()));
+        table_maker.with(Box::new(move |pt| {
+            TimestampHours::new(&pt.timestamp.time).to_string()
+        }));
 
         table_maker.into_table(timestamps.as_slice()).print(out)?;
     } else {
@@ -139,7 +190,7 @@ async fn execute_history<T: Write + Send>(matches: &ArgMatches, out: &mut T, cli
             .unwrap_or_else(|| {
                 let today = Utc::now().date();
                 let days_from_monday = today.weekday().num_days_from_monday();
-        
+
                 Ok(today.naive_local() - Duration::days(1) * days_from_monday as i32)
             })?;
         let to = matches
@@ -148,35 +199,70 @@ async fn execute_history<T: Write + Send>(matches: &ArgMatches, out: &mut T, cli
             .unwrap_or_else(|| {
                 let today = Utc::now().date();
                 let days_from_monday = today.weekday().num_days_from_monday();
-                let friday = today + Duration::days(4 - days_from_monday as i64);
-    
-                Ok(friday.naive_local())
+                let sunday = today + Duration::days(6 - days_from_monday as i64);
+
+                Ok(sunday.naive_local())
             })?;
 
-        let mut timestamps = get_timestamps_for_period(client, from, to).await?;
-        timestamps.sort_by(|t0, t1| t0.project_id.cmp(&t1.project_id));
+        let transpose = matches.is_present("transponer");
+        let disable_auto_transposing = matches.is_present("deaktiver-auto-transponering");
+        if transpose || (to - from > Duration::days(6) && !disable_auto_transposing) { // auto transpose if more than one week
+            let mut timestamps = client.get_timestamps_for_period(from, to).await?;
+            timestamps.sort_by(|t0, t1| t0.timestamp.date.cmp(&t1.timestamp.date));
 
-        let mut table_maker = print::TableMaker::new();
-
-        let titles = from.iter_days().take_while(|d| d <= &to).fold(
-            vec!["PROSJEKT".to_string()],
-            |mut titles, next| {
-                titles.push(next.format("%Y-%m-%d (%a)").to_string());
-                titles
-            },
-        );
-        table_maker.titles(titles);
-    
-        table_maker.with(Box::new(|pt: &ProjectTimestamps| pt.project_id.clone()));
-        from.iter_days().take_while(|d| d <= &to).for_each(|d| {
-            table_maker.with(Box::new(move |pt| {
-                pt.find_timestamp_for_date(&d)
-                    .map(|ts| TimestampHours::from(ts.time).to_string())
-                    .unwrap_or_default()
+            let mut table_maker = print::TableMaker::new();
+            table_maker.static_titles(vec!["DATO", "PROSJEKT", "TIMER"]);
+            table_maker.with(Box::new(|pt: &ProjectTimestamp| {
+                pt.timestamp.date.format("%Y-%m-%d (%a)").to_string()
             }));
-        });
+            table_maker.with(Box::new(|pt: &ProjectTimestamp| pt.project_id.clone()));
+            table_maker.with(Box::new(|pt: &ProjectTimestamp| {
+                TimestampHours::new(&pt.timestamp.time).to_string()
+            }));
 
-        table_maker.into_table(timestamps.as_slice()).print(out)?;
+            table_maker.into_table(timestamps.as_slice()).print(out)?;
+        } else {
+            let mut timestamps = get_timestamps_for_period(client, from, to).await?;
+            timestamps.sort_by(|t0, t1| t0.project_id.cmp(&t1.project_id));
+            let timestamped_dates: HashMap<NaiveDate, ()> = timestamps
+                .iter()
+                .flat_map(|pt| pt.timestamps.iter().map(|t| t.date))
+                .map(|d| (d, ()))
+                .collect();
+            let mut skipped_days = vec![];
+
+            let mut table_maker = print::TableMaker::new();
+
+            let titles = from.iter_days().take_while(|d| d <= &to).fold(
+                vec!["PROSJEKT".to_string()],
+                |mut titles, next| {
+                    // skip days in weekend if no timestamp
+                    let weekday = next.weekday();
+                    let is_weekend = weekday == Weekday::Sat || weekday == Weekday::Sun;
+                    if !is_weekend || timestamped_dates.contains_key(&next) {
+                        titles.push(next.format("%Y-%m-%d (%a)").to_string());
+                    } else {
+                        skipped_days.push(next);
+                    }
+                    titles
+                },
+            );
+            table_maker.titles(titles);
+
+            table_maker.with(Box::new(|pt: &ProjectTimestamps| pt.project_id.clone()));
+            from.iter_days()
+                .take_while(|d| d <= &to)
+                .filter(|d| !skipped_days.contains(d))
+                .for_each(|d| {
+                    table_maker.with(Box::new(move |pt| {
+                        pt.find_timestamp_for_date(&d)
+                            .map(|ts| TimestampHours::new(&ts.time).to_string())
+                            .unwrap_or_default()
+                    }));
+                });
+
+            table_maker.into_table(timestamps.as_slice()).print(out)?;
+        }
     }
 
     Ok(())
@@ -226,21 +312,21 @@ impl Timestamp {
     }
 }
 
-pub struct TimestampHours(Duration);
+pub struct TimestampHours<'a>(&'a Duration);
 
-impl From<Duration> for TimestampHours {
-    fn from(duration: Duration) -> Self {
+impl<'a> TimestampHours<'a> {
+    fn new(duration: &'a Duration) -> Self {
         Self(duration)
     }
 }
 
-impl Display for TimestampHours {
+impl<'a> Display for TimestampHours<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}.{}t",
             self.0.num_hours(),
-            (self.0 - Duration::hours(self.0.num_hours())).num_minutes() / 6
+            (*self.0 - Duration::hours(self.0.num_hours())).num_minutes() / 6
         )
     }
 }

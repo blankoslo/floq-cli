@@ -5,7 +5,7 @@ use crate::http_client::FLOQ_API_DOMAIN;
 use std::error::Error;
 
 use chrono::{Duration, NaiveDate};
-use futures::{StreamExt, stream::FuturesUnordered};
+use futures::{stream::FuturesUnordered, StreamExt};
 use serde::{Deserialize, Serialize};
 use surf::{Response, StatusCode};
 
@@ -46,7 +46,7 @@ impl HttpClient {
     pub async fn get_timestamp_on_project_for_date(
         &self,
         project_id: &str,
-        date: NaiveDate,
+        date: &NaiveDate,
     ) -> Result<Duration, Box<dyn Error>> {
         let url = format!(
             "{}/time_entry?select=minutes&employee=eq.{}&project=eq.{}&date=eq.{}",
@@ -79,7 +79,7 @@ impl HttpClient {
             .map(|i| self.get_timestamps_for_date(from + Duration::days(i)))
             .collect();
 
-        let mut results: Vec<Vec<ProjectTimestamp>> = vec!();
+        let mut results: Vec<Vec<ProjectTimestamp>> = vec![];
         while let Some(r) = futures.next().await {
             results.push(r?);
         }
@@ -122,7 +122,7 @@ struct TimestampRequest<'a> {
     creator: u16,
     employee: u16,
     project: &'a str,
-    date: NaiveDate,
+    date: &'a NaiveDate,
     minutes: i64,
 }
 
@@ -130,7 +130,7 @@ impl HttpClient {
     pub async fn add_timestamp(
         &self,
         project_id: &str,
-        date: NaiveDate,
+        date: &NaiveDate,
         time: Duration,
     ) -> Result<(), Box<dyn Error>> {
         let body = TimestampRequest {

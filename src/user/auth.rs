@@ -21,10 +21,10 @@ pub async fn authorize() -> Result<AuthorizedUser, Box<dyn Error>> {
         match handle_callback(request) {
             Ok(tokens) => {
                 tx.send(Ok(tokens)).unwrap();
-                Response::text("Flott, da er du logget inn!\n\n(Bare å lukke denne fanen)")
+                Response::text("Flott, da er du logget inn i floq cli!\n\n(Bare å lukke denne fanen)")
             },
             Err(e) => {
-                eprintln!("Error on handling callback from Floq Auth: {}", e);
+                eprintln!("Error on handle callback from Floq Auth: {}", e);
                 tx.send(Err(e.to_string())).unwrap();
                 Response::text("An error occurred while trying to handle Auth callback, see command output for more details")
             }
