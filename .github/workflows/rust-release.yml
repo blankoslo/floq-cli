@@ -1,0 +1,98 @@
+name: Rust release
+
+on: [push]
+
+jobs:
+  release-linux:
+    runs-on: ubuntu-latest
+
+    env:
+      FLOQ_DOMAIN: https://inni.blank.no
+      FLOQ_API_DOMAIN: https://api-blank.floq.no
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+    
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+    
+      - name: Build
+        run: > 
+          cargo build --workspace --release && 
+            strip target/release/floq && 
+            mv target/release/floq target/release/floq_linux
+    
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: target/release/floq_linux
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+  release-win:
+    runs-on: windows-latest
+
+    env:
+      FLOQ_DOMAIN: https://inni.blank.no
+      FLOQ_API_DOMAIN: https://api-blank.floq.no
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+
+      - name: Build
+        run: cargo build --workspace --release
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: target/release/floq.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
+  release-mac:
+    runs-on: macos-latest
+
+    env:
+      FLOQ_DOMAIN: https://inni.blank.no
+      FLOQ_API_DOMAIN: https://api-blank.floq.no
+      
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-apple-darwin
+          default: true
+          override: true
+
+      - name: Build for mac
+        run: > 
+          cargo build --workspace --release && 
+            strip target/release/floq && 
+            mv target/release/floq target/release/floq_mac
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: target/release/floq_mac
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
