@@ -1,4 +1,4 @@
-name: Rust release
+name: Release
 
 on: [push]
 
@@ -9,6 +9,8 @@ jobs:
     env:
       FLOQ_DOMAIN: https://inni.blank.no
       FLOQ_API_DOMAIN: https://api-blank.floq.no
+
+    if: startsWith(github.ref, 'refs/tags/')
 
     steps:
       - name: Checkout
@@ -29,7 +31,6 @@ jobs:
     
       - name: Release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: target/release/floq_linux
         env:
@@ -41,6 +42,8 @@ jobs:
     env:
       FLOQ_DOMAIN: https://inni.blank.no
       FLOQ_API_DOMAIN: https://api-blank.floq.no
+
+    if: startsWith(github.ref, 'refs/tags/')
 
     steps:
       - name: Checkout
@@ -58,7 +61,6 @@ jobs:
 
       - name: Release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: target/release/floq.exe
         env:
@@ -70,7 +72,9 @@ jobs:
     env:
       FLOQ_DOMAIN: https://inni.blank.no
       FLOQ_API_DOMAIN: https://api-blank.floq.no
-      
+
+    if: startsWith(github.ref, 'refs/tags/')
+
     steps:
       - name: Checkout
         uses: actions/checkout@v1
@@ -91,7 +95,6 @@ jobs:
 
       - name: Release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: target/release/floq_mac
         env:
