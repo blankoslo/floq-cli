@@ -16,12 +16,18 @@ pub struct UserConfig {
     pub refresh_token: String,
 }
 
+fn home_path() -> String {
+    env::var("HOME")
+        .or_else(|_| env::var("HOMEPATH"))
+        .expect("Did not find env var 'HOME' or 'HOMEPATH'")
+}
+
 fn folder_path() -> String {
-    env::var("HOME").expect("Did not find env var 'HOME'") + "/.floq"
+    home_path() + "/.floq"
 }
 
 fn file_path() -> String {
-    env::var("HOME").expect("Did not find env var 'HOME'") + "/.floq/user-config.toml"
+    home_path() + "/.floq/user-config.toml"
 }
 
 pub async fn load_config() -> Result<Option<UserConfig>, Box<dyn Error>> {
