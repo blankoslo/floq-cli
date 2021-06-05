@@ -4,7 +4,7 @@ use std::{error::Error, io::Write};
 
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
-use clap::{App, ArgMatches};
+use clap::{App, AppSettings, ArgMatches};
 
 mod auth;
 mod config;
@@ -15,6 +15,7 @@ const SUBCOMMAND_NAME: &str = "bruker";
 pub fn subcommand_app<'help>() -> App<'help> {
     App::new(SUBCOMMAND_NAME)
         .about("Brukerhåndtering")
+        .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(App::new("logg-inn").about("Logg inn i FLOQ"))
         .subcommand(
             App::new("logg-ut").about("Logg ut av FLOQ, sletter din lokale bruker konfigurasjon"),
@@ -22,13 +23,13 @@ pub fn subcommand_app<'help>() -> App<'help> {
 }
 
 pub fn subcommand<T: Write + Send>() -> Box<dyn Subcommand<T>> {
-    Box::new(LoginSubcommand {})
+    Box::new(UserSubcommand {})
 }
 
-struct LoginSubcommand;
+struct UserSubcommand;
 
 #[async_trait(?Send)]
-impl<T: Write + Send> Subcommand<T> for LoginSubcommand {
+impl<T: Write + Send> Subcommand<T> for UserSubcommand {
     fn matches(&self, matches: &ArgMatches) -> bool {
         matches.subcommand_name() == Some(SUBCOMMAND_NAME)
     }
@@ -36,8 +37,7 @@ impl<T: Write + Send> Subcommand<T> for LoginSubcommand {
     async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<(), Box<dyn Error>> {
         match matches.subcommand() {
             Some(("logg-inn", _)) => {
-                let user = authorize_user().await?;
-                write!(out, "Hei {}!", user.name)?;
+                authorize_user(out).await?;
                 Ok(())
             }
             Some(("logg-ut", _)) => {
@@ -62,7 +62,7 @@ pub struct Employee {
     name: String,
 }
 
-pub async fn authorize_user() -> Result<User, Box<dyn Error>> {
+pub async fn authorize_user<OUT: Write + Send>(out: &mut OUT) -> Result<User, Box<dyn Error>> {
     let authorized_user = auth::authorize().await?;
 
     let employee = http::get_logged_in_employee(&authorized_user.access_token).await?;
@@ -77,6 +77,10 @@ pub async fn authorize_user() -> Result<User, Box<dyn Error>> {
     };
     config::update_config(&config).await?;
 
+    writeln!(out)?;
+    writeln!(out, "Hei, {}!", employee.name)?;
+    writeln!(out)?;
+
     Ok(User {
         employee_id: employee.id,
         email: employee.email,
@@ -85,32 +89,40 @@ pub async fn authorize_user() -> Result<User, Box<dyn Error>> {
     })
 }
 
-pub async fn load_user_from_config() -> Result<User, Box<dyn Error>> {
-    let mut config = config::load_config()
-        .await?
-        .ok_or("No user configuration found")?;
+pub async fn load_user_from_config<OUT: Write + Send>(
+    out: &mut OUT,
+) -> Result<User, Box<dyn Error>> {
+    let config = config::load_config().await?;
     let now = Utc::now().naive_utc();
 
-    if config.access_token_expires < now - Duration::minutes(1) {
-        let authorized_user = auth::refresh_access_token(&config.refresh_token).await?;
+    match config {
+        None => {
+            writeln!(
+                out,
+                "Fant ingen konfigurasjon så starter løpet for autentisering nå:"
+            )?;
+            authorize_user(out).await
+        }
+        Some(mut c) if c.access_token_expires < now - Duration::minutes(1) => {
+            let authorized_user = auth::refresh_access_token(&c.refresh_token).await?;
 
-        config.access_token = authorized_user.access_token;
-        config.access_token_expires = authorized_user.expires_at;
+            c.access_token = authorized_user.access_token;
+            c.access_token_expires = authorized_user.expires_at;
 
-        config::update_config(&config).await?;
+            config::update_config(&c).await?;
 
-        Ok(User {
-            employee_id: config.employee_id,
-            email: config.email,
-            name: config.name,
-            access_token: config.access_token,
-        })
-    } else {
-        Ok(User {
-            employee_id: config.employee_id,
-            email: config.email,
-            name: config.name,
-            access_token: config.access_token,
-        })
+            Ok(User {
+                employee_id: c.employee_id,
+                email: c.email,
+                name: c.name,
+                access_token: c.access_token,
+            })
+        }
+        Some(c) => Ok(User {
+            employee_id: c.employee_id,
+            email: c.email,
+            name: c.name,
+            access_token: c.access_token,
+        }),
     }
 }

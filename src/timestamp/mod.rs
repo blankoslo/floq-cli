@@ -4,7 +4,7 @@ use std::{collections::HashMap, error::Error, fmt::Display, io::Write};
 
 use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
-use clap::{App, Arg, ArgMatches};
+use clap::{App, AppSettings, Arg, ArgMatches};
 use futures::{stream::FuturesUnordered, StreamExt};
 
 mod http;
@@ -14,7 +14,8 @@ const SUBCOMMAND_NAME: &str = "timeføring";
 pub fn subcommand_app<'help>() -> App<'help> {
     App::new(SUBCOMMAND_NAME)
         .about("Før timer på et prosjekt")
-        .arg(Arg::new("prosjekt").about("Prosjektet du ønsker å føre timer på").index(1))
+        .setting(AppSettings::SubcommandsNegateReqs)
+        .arg(Arg::new("prosjekt").about("Prosjektet du ønsker å føre timer på").required(true).index(1))
         .arg(
             Arg::new("timer")
                 .long("timer")
@@ -53,7 +54,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
         .subcommand(
             App::new("historikk")
                 .about(
-                    "Vis timeføring, periode kan velges ved å sette \"--dato\", eller med \"--fra\" og \"--til\" eller ingen av dem for å vise denne uken"
+                    "Vis timeføring, periode kan velges ved å sette \"--dato\", med \"--fra\" og \"--til\" eller ingen av dem for å vise denne uken"
                 )
                 .arg(
                     Arg::new("dato")
@@ -116,7 +117,7 @@ impl<T: Write + Send> Subcommand<T> for TimestampSubcommand {
     }
 
     async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<(), Box<dyn Error>> {
-        let user = user::load_user_from_config().await?;
+        let user = user::load_user_from_config(out).await?;
         let client = HttpClient::from_user(&user);
 
         match matches.subcommand() {
@@ -190,9 +191,16 @@ impl<'a> Display for TimestampHours<'a> {
     }
 }
 
+struct SetTimestampResult<'a> {
+    project_id: &'a str,
+    time: &'a Duration,
+    date: &'a NaiveDate,
+    time_diff: Duration,
+}
+
 async fn execute_timestamp<T: Write + Send>(
     matches: &ArgMatches,
-    _out: &mut T,
+    out: &mut T,
     client: HttpClient,
 ) -> Result<(), Box<dyn Error>> {
     let project_id = matches.value_of("prosjekt").unwrap();
@@ -222,30 +230,59 @@ async fn execute_timestamp<T: Write + Send>(
         .map(|date| set_timetsamp(project_id, &time, date, &client))
         .collect();
     while let Some(r) = futures.next().await {
-        r?
+        let set_timestamp_result = r?;
+
+        if set_timestamp_result.time_diff.is_zero() {
+            writeln!(
+                out,
+                "Du har allerede ført {} på {} den {}",
+                TimestampHours(set_timestamp_result.time),
+                set_timestamp_result.project_id,
+                set_timestamp_result
+                    .date
+                    .format("%Y-%m-%d (%a)")
+                    .to_string(),
+            )?;
+        } else {
+            writeln!(
+                out,
+                "Førte {} på {} den {}",
+                TimestampHours(set_timestamp_result.time),
+                set_timestamp_result.project_id,
+                set_timestamp_result
+                    .date
+                    .format("%Y-%m-%d (%a)")
+                    .to_string(),
+            )?;
+        }
     }
     Ok(())
 }
 
-async fn set_timetsamp(
-    project_id: &str,
-    time: &Duration,
-    date: &NaiveDate,
+async fn set_timetsamp<'a>(
+    project_id: &'a str,
+    time: &'a Duration,
+    date: &'a NaiveDate,
     client: &HttpClient,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<SetTimestampResult<'a>, Box<dyn Error>> {
     let current_time = client
         .get_timestamp_on_project_for_date(project_id, date)
         .await?;
     let time_diff = *time - current_time;
 
-    if time_diff.is_zero() {
-        Ok(())
-    } else {
+    if !time_diff.is_zero() {
         client
             .add_timestamp(project_id, date, time_diff)
             .await
-            .map(|_| ())
+            .map(|_| ())?;
     }
+
+    Ok(SetTimestampResult {
+        project_id,
+        time,
+        date,
+        time_diff,
+    })
 }
 
 async fn execute_history<T: Write + Send>(

@@ -47,7 +47,7 @@ impl<T: Write + Send> Subcommand<T> for ProjectsSubcommand {
     }
 
     async fn execute(&self, matches: &clap::ArgMatches, out: &mut T) -> Result<(), Box<dyn Error>> {
-        let user = user::load_user_from_config().await?;
+        let user = user::load_user_from_config(out).await?;
         let client = HttpClient::from_user(&user);
 
         let all = matches.is_present("alle");
