@@ -16,9 +16,9 @@ pub fn subcommand_app<'help>() -> App<'help> {
     App::new(SUBCOMMAND_NAME)
         .about("Brukerhåndtering")
         .setting(AppSettings::ArgRequiredElseHelp)
-        .subcommand(App::new("logg-inn").about("Logg inn i FLOQ"))
+        .subcommand(App::new("logg-inn").about("Logg inn i Floq"))
         .subcommand(
-            App::new("logg-ut").about("Logg ut av FLOQ, sletter din lokale bruker konfigurasjon"),
+            App::new("logg-ut").about("Logg ut av Floq, sletter din lokale bruker konfigurasjon"),
         )
 }
 
