@@ -235,7 +235,7 @@ async fn execute_timestamp<T: Write + Send>(
         if set_timestamp_result.time_diff.is_zero() {
             writeln!(
                 out,
-                "Du har allerede ført {} på {} den {}",
+                "Du har allerede ført {} på {} for {}",
                 TimestampHours(set_timestamp_result.time),
                 set_timestamp_result.project_id,
                 set_timestamp_result
@@ -246,7 +246,7 @@ async fn execute_timestamp<T: Write + Send>(
         } else {
             writeln!(
                 out,
-                "Førte {} på {} den {}",
+                "Førte {} på {} for {}",
                 TimestampHours(set_timestamp_result.time),
                 set_timestamp_result.project_id,
                 set_timestamp_result
