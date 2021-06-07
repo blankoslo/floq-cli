@@ -63,7 +63,7 @@ pub struct Employee {
 }
 
 pub async fn authorize_user<OUT: Write + Send>(out: &mut OUT) -> Result<User, Box<dyn Error>> {
-    let authorized_user = auth::authorize().await?;
+    let authorized_user = auth::authorize(out).await?;
 
     let employee = http::get_logged_in_employee(&authorized_user.access_token).await?;
 
@@ -77,7 +77,6 @@ pub async fn authorize_user<OUT: Write + Send>(out: &mut OUT) -> Result<User, Bo
     };
     config::update_config(&config).await?;
 
-    writeln!(out)?;
     writeln!(out, "Hei, {}!", employee.name)?;
     writeln!(out)?;
 
