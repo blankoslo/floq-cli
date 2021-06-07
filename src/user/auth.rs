@@ -1,5 +1,6 @@
 use crate::http_client::FLOQ_DOMAIN;
 
+use std::io::Write;
 use std::{collections::HashMap, sync::mpsc};
 use std::{error::Error, time::Duration};
 
@@ -14,7 +15,7 @@ pub struct AuthorizedUser {
     pub expires_at: NaiveDateTime,
 }
 
-pub async fn authorize() -> Result<AuthorizedUser, Box<dyn Error>> {
+pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUser, Box<dyn Error>> {
     let (tx, rx) = mpsc::sync_channel::<Result<AuthorizedUser, String>>(0);
 
     let server = rouille::Server::new("0.0.0.0:0", move |request| {
@@ -34,8 +35,10 @@ pub async fn authorize() -> Result<AuthorizedUser, Box<dyn Error>> {
 
     let port = server.server_addr().port();
 
-    println!("Venligst åpne denne lenken i nettleseren din:");
-    println!("{}/login/oauth?to=http://localhost:{}", FLOQ_DOMAIN, port);
+    writeln!(out)?;
+    writeln!(out, "Vennligst åpne denne lenken i nettleseren din:")?;
+    writeln!(out, "{}/login/oauth?to=http://localhost:{}", FLOQ_DOMAIN, port)?;
+    writeln!(out)?;
 
     loop {
         match rx.try_iter().next() {
@@ -122,10 +125,7 @@ pub async fn refresh_access_token(refresh_token: &str) -> Result<AuthorizedUser,
     if response.status().is_client_error() || response.status().is_server_error() {
         Err(format!("Got status {}", response.status()).into())
     } else {
-        let tokens: RefreshAccessTokenResponse = response.body_json().await.map_err(|e| {
-            println!("{:?}", e);
-            e
-        })?;
+        let tokens: RefreshAccessTokenResponse = response.body_json().await?;
 
         Ok(tokens.into_authorized_user(refresh_token))
     }
