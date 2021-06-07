@@ -15,7 +15,7 @@ mod user;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = App::new("floq")
-        .about("FLOQ i din lokale terminal")
+        .about("Floq i din lokale terminal")
         .version("0.1")
         .author("Rust Gjengen")
         .setting(AppSettings::ArgRequiredElseHelp)

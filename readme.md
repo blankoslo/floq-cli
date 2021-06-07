@@ -19,7 +19,7 @@ export FLOQ_DOMAIN=https://blank-test.floq.no
 export FLOQ_API_DOMAIN=https://api-blank-test.floq.no
 ```
 
-FOLQ (prod)
+Folq (prod)
 ```
 export FLOQ_DOMAIN=https://folq.floq.no
 export FLOQ_API_DOMAIN=https://api-folq.floq.no
