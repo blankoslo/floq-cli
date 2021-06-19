@@ -42,7 +42,7 @@ impl<T: Write + Send> Subcommand<T> for UserSubcommand {
             }
             Some(("logg-ut", _)) => {
                 config::delete_config().await?;
-                write!(out, "Ha det bra!")?;
+                writeln!(out, "Ha det bra!")?;
                 Ok(())
             }
             _ => unreachable!("Unknown commands should be handled by the library"),
