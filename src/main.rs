@@ -20,15 +20,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         .version("0.1")
         .author("Rust-gjengen")
         .setting(AppSettings::ArgRequiredElseHelp)
-        .subcommand(user::subcommand_app())
-        .subcommand(project::subcommand_app())
-        .subcommand(timestamp::subcommand_app())
+        .subcommand(user::subcommand_app().display_order(1))
+        .subcommand(project::subcommand_app().display_order(2))
+        .subcommand(timestamp::subcommand_app().display_order(3))
+        .subcommand(timestamp::history::subcommand_app().display_order(4))
         .get_matches();
 
     let commands: Vec<Box<dyn Subcommand<_>>> = vec![
         user::subcommand(),
         project::subcommand(),
         timestamp::subcommand(),
+        timestamp::history::subcommand(),
     ];
 
     match matches.subcommand() {
