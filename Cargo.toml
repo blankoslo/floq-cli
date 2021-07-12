@@ -1,7 +1,7 @@
 [package]
 name = "floq"
-version = "0.1.0"
-authors = ["emil daijiro <eg@blank.no>"]
+version = "0.4.0"
+authors = ["Trond Øydna <trond.oydna@blank.no>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -15,7 +15,7 @@ rouille = "3.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-jwt = "0.12"
+jwt = "0.13"
 toml = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
 clap = "3.0.0-beta.1"
