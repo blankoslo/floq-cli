@@ -1,4 +1,4 @@
-use crate::{cmd::Subcommand, http_client::HttpClient, print, user};
+use crate::{cmd::Subcommand, http_client::HttpClient, print, time, user};
 
 use std::{collections::HashMap, error::Error, fmt::Display, io::Write};
 
@@ -12,6 +12,28 @@ mod http;
 const SUBCOMMAND_NAME: &str = "timeføring";
 
 pub fn subcommand_app<'help>() -> App<'help> {
+    let days = time::Weekdays::all();
+
+    let day_args: Vec<Arg> = days
+        .iter()
+        .map(|day| {
+            let weekday = day.get_weekday();
+            let conflicts: Vec<&str> = days
+                .iter()
+                .filter(|&d| d != day)
+                .map(|d| d.get_weekday().full_name)
+                .collect();
+
+            Arg::new(weekday.full_name)
+                .long(weekday.full_name)
+                .visible_alias(weekday.short_name)
+                .conflicts_with("dato")
+                .conflicts_with_all(&conflicts)
+                .about("Ukedag det skal føres timer på, relativt til dagens dato")
+                .display_order(day.as_chrono_weekday().num_days_from_monday() as usize + 1)
+        })
+        .collect();
+
     App::new(SUBCOMMAND_NAME)
         .about("Før timer på et prosjekt")
         .setting(AppSettings::SubcommandsNegateReqs)
@@ -29,7 +51,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .long("dato")
                 .short('d')
                 .takes_value(true)
-                .about("Dagen det skal føres timer på, settes til i dag hvis utelatt. Eksempel \"2021-03-01\""),
+                .about("Dagen det skal føres timer på, settes til i dag hvis utelatt.\nF.eks. \"--dato 2021-03-01\""),
         )
         .arg(
             Arg::new("fra")
@@ -38,7 +60,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .requires("til")
                 .conflicts_with("dato")
                 .about(
-                    "Brukes samme med --til for å føre timer i en periode, er inklusiv. Eksempel \"2021-03-01\" ",
+                    "Brukes samme med --til for å føre timer i en periode, er inklusiv.\nF.eks. \"--fra 2021-03-01\" ",
                 ),
         )
         .arg(
@@ -48,9 +70,26 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .requires("fra")
                 .conflicts_with("dato")
                 .about(
-                    "Brukes samme med --fra for å føre timer i en periode, er inklusiv. Eksempel \"2021-03-05\"",
+                    "Brukes samme med --fra for å føre timer i en periode, er inklusiv.\nF.eks. \"--til 2021-03-05\"",
                 ),
         )
+        .arg(
+            Arg::new("forrige-uke")
+                .long("forrige-uke")
+                .conflicts_with_all(&["neste-uke", "dato", "fra", "til" ])
+                .about(
+                    "Setter relativ dato til forrige uke. Brukes sammen med ukedagene til å velge en dag i forrige uke"
+                )
+        )
+        .arg(
+            Arg::new("neste-uke")
+                .long("neste-uke")
+                .conflicts_with_all(&["forrige-uke", "dato", "fra", "til" ])
+                .about(
+                    "Setter relativ dato til neste uke. Brukes sammen med ukedagene til å velge en dag i neste uke"
+                )
+        )
+        .args(day_args)
         .subcommand(
             App::new("historikk")
                 .about(
@@ -61,7 +100,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
                         .long("dato")
                         .short('d')
                         .takes_value(true)
-                        .about("Dagen du ønsker å vise timer for. Eksempel \"2021-03-01\""),
+                        .about("Dagen du ønsker å vise timer for.\nF.eks. \"--dato 2021-03-01\""),
                 )
                 .arg(
                     Arg::new("fra")
@@ -70,7 +109,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
                         .requires("til")
                         .conflicts_with("dato")
                         .about(
-                            "Første dagen å vise timer for, settes til mandag denne uken hvis utelatt. Eksempel \"2021-03-01\" ",
+                            "Første dagen å vise timer for, settes til mandag denne uken hvis utelatt.\nF.eks. \"--fra 2021-03-01\" ",
                         ),
                 )
                 .arg(
@@ -80,7 +119,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
                         .requires("fra")
                         .conflicts_with("dato")
                         .about(
-                            "Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt. Eksempel \"2021-03-05\"",
+                            "Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt.\nF.eks. \"--til 2021-03-05\"",
                         ),
                 )
                 .arg(
@@ -174,12 +213,6 @@ impl Timestamp {
 
 pub struct TimestampHours<'a>(&'a Duration);
 
-impl<'a> TimestampHours<'a> {
-    fn new(duration: &'a Duration) -> Self {
-        Self(duration)
-    }
-}
-
 impl<'a> Display for TimestampHours<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -187,6 +220,20 @@ impl<'a> Display for TimestampHours<'a> {
             "{}.{}t",
             self.0.num_hours(),
             (*self.0 - Duration::hours(self.0.num_hours())).num_minutes() / 6
+        )
+    }
+}
+pub struct TimestampDate<'a>(&'a NaiveDate);
+
+impl<'a> Display for TimestampDate<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let weekdays : time::Weekdays =  self.0.into();
+
+        write!(
+            f,
+            "{} ({})",
+            self.0.format("%Y-%m-%d").to_string(),
+            weekdays.get_weekday().short_name
         )
     }
 }
@@ -216,13 +263,35 @@ async fn execute_timestamp<T: Write + Send>(
         let to: NaiveDate = matches.value_of("til").unwrap().parse::<NaiveDate>()?;
 
         from.iter_days().take_while(|d| d <= &to).collect()
-    } else {
+    } else if matches.is_present("dato") {
         let date: NaiveDate = matches
             .value_of("dato")
             .map(|date| date.parse::<NaiveDate>())
             .unwrap_or_else(|| Ok(Utc::now().date().naive_local()))?;
 
         vec![date]
+    } else {
+        let weekdays = time::Weekdays::all();
+        let weekday = weekdays
+            .iter()
+            .find(|w| matches.is_present(w.get_weekday().full_name))
+            .expect("Unknown flags and options should be handled by the library");
+
+        let today = Utc::now().date();
+        let base_date = if matches.is_present("forrige-uke") {
+            today - Duration::weeks(1)
+        } else if matches.is_present("neste-uke") {
+            today + Duration::weeks(1)
+        } else {
+            today
+        };
+
+        let days_from_monday = base_date.weekday().num_days_from_monday();
+        let days_until_date =
+            weekday.as_chrono_weekday().num_days_from_monday() as i64 - days_from_monday as i64;
+        let date = base_date + Duration::days(days_until_date);
+
+        vec![date.naive_local()]
     };
 
     let mut futures: FuturesUnordered<_> = dates
@@ -238,10 +307,7 @@ async fn execute_timestamp<T: Write + Send>(
                 "Du har allerede ført {} på {} for {}",
                 TimestampHours(set_timestamp_result.time),
                 set_timestamp_result.project_id,
-                set_timestamp_result
-                    .date
-                    .format("%Y-%m-%d (%a)")
-                    .to_string(),
+                TimestampDate(set_timestamp_result.date),
             )?;
         } else {
             writeln!(
@@ -249,10 +315,7 @@ async fn execute_timestamp<T: Write + Send>(
                 "Førte {} på {} for {}",
                 TimestampHours(set_timestamp_result.time),
                 set_timestamp_result.project_id,
-                set_timestamp_result
-                    .date
-                    .format("%Y-%m-%d (%a)")
-                    .to_string(),
+                TimestampDate(set_timestamp_result.date),
             )?;
         }
     }
@@ -300,12 +363,12 @@ async fn execute_history<T: Write + Send>(
 
         table_maker.titles(vec![
             "PROSJEKT".to_string(),
-            date.format("%Y-%m-%d (%a)").to_string(),
+            TimestampDate(&date).to_string(),
         ]);
 
         table_maker.with(Box::new(|pt: &ProjectTimestamp| pt.project_id.clone()));
         table_maker.with(Box::new(move |pt| {
-            TimestampHours::new(&pt.timestamp.time).to_string()
+            TimestampHours(&pt.timestamp.time).to_string()
         }));
 
         table_maker.into_table(timestamps.as_slice()).print(out)?;
@@ -341,11 +404,11 @@ async fn execute_history<T: Write + Send>(
             let mut table_maker = print::TableMaker::new();
             table_maker.static_titles(vec!["DATO", "PROSJEKT", "TIMER"]);
             table_maker.with(Box::new(|pt: &ProjectTimestamp| {
-                pt.timestamp.date.format("%Y-%m-%d (%a)").to_string()
+                TimestampDate(&pt.timestamp.date).to_string()
             }));
             table_maker.with(Box::new(|pt: &ProjectTimestamp| pt.project_id.clone()));
             table_maker.with(Box::new(|pt: &ProjectTimestamp| {
-                TimestampHours::new(&pt.timestamp.time).to_string()
+                TimestampHours(&pt.timestamp.time).to_string()
             }));
 
             table_maker.into_table(timestamps.as_slice()).print(out)?;
@@ -368,7 +431,7 @@ async fn execute_history<T: Write + Send>(
                     let weekday = next.weekday();
                     let is_weekend = weekday == Weekday::Sat || weekday == Weekday::Sun;
                     if !is_weekend || timestamped_dates.contains_key(&next) {
-                        titles.push(next.format("%Y-%m-%d (%a)").to_string());
+                        titles.push(TimestampDate(&next).to_string());
                     } else {
                         skipped_days.push(next);
                     }
@@ -384,7 +447,7 @@ async fn execute_history<T: Write + Send>(
                 .for_each(|d| {
                     table_maker.with(Box::new(move |pt| {
                         pt.find_timestamp_for_date(&d)
-                            .map(|ts| TimestampHours::new(&ts.time).to_string())
+                            .map(|ts| TimestampHours(&ts.time).to_string())
                             .unwrap_or_default()
                     }));
                 });

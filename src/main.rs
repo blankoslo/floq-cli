@@ -10,6 +10,7 @@ mod cmd;
 mod http_client;
 mod print;
 mod project;
+mod time;
 mod timestamp;
 mod user;
 
