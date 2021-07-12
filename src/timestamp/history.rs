@@ -1,5 +1,5 @@
-use crate::{cmd::Subcommand, http_client::HttpClient, print, user};
 use super::{TimestampDate, TimestampHours};
+use crate::{cmd::Subcommand, http_client::HttpClient, print, user};
 
 use std::{collections::HashMap, error::Error, io::Write};
 

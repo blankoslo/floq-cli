@@ -92,7 +92,7 @@ impl Weekdays {
     }
 }
 
-impl <D : Datelike> From<&D> for Weekdays {
+impl<D: Datelike> From<&D> for Weekdays {
     fn from(dl: &D) -> Self {
         match dl.weekday() {
             chrono::Weekday::Mon => Weekdays::monday(),
