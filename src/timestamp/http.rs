@@ -1,4 +1,4 @@
-use super::{ProjectTimestamp, Timestamp};
+use super::history::{ProjectTimestamp, Timestamp};
 use crate::http_client::floq_api_domain;
 use crate::http_client::HttpClient;
 
