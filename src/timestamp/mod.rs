@@ -132,7 +132,7 @@ pub struct TimestampDate<'a>(&'a NaiveDate);
 
 impl<'a> Display for TimestampDate<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let weekdays : time::Weekdays =  self.0.into();
+        let weekdays: time::Weekdays = self.0.into();
 
         write!(
             f,
@@ -179,24 +179,27 @@ async fn execute<T: Write + Send>(
         let weekdays = time::Weekdays::all();
         let weekday = weekdays
             .iter()
-            .find(|w| matches.is_present(w.get_weekday().full_name))
-            .expect("Unknown flags and options should be handled by the library");
+            .find(|w| matches.is_present(w.get_weekday().full_name));
 
-        let today = Utc::now().date();
-        let base_date = if matches.is_present("forrige-uke") {
-            today - Duration::weeks(1)
-        } else if matches.is_present("neste-uke") {
-            today + Duration::weeks(1)
-        } else {
-            today
-        };
+        if let Some(weekday) = weekday {
+            let today = Utc::now().date();
+            let base_date = if matches.is_present("forrige-uke") {
+                today - Duration::weeks(1)
+            } else if matches.is_present("neste-uke") {
+                today + Duration::weeks(1)
+            } else {
+                today
+            };
 
-        let days_from_monday = base_date.weekday().num_days_from_monday();
-        let days_until_date =
-            weekday.as_chrono_weekday().num_days_from_monday() as i64 - days_from_monday as i64;
-        let date = base_date + Duration::days(days_until_date);
+            let days_from_monday = base_date.weekday().num_days_from_monday();
+            let days_until_date =
+                weekday.as_chrono_weekday().num_days_from_monday() as i64 - days_from_monday as i64;
+            let date = base_date + Duration::days(days_until_date);
 
-        vec![date.naive_local()]
+            vec![date.naive_local()]
+        } else { // fallback to todays date
+            vec![Utc::now().date().naive_local()]
+        }
     };
 
     let mut futures: FuturesUnordered<_> = dates
