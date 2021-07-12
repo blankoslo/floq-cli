@@ -4,19 +4,19 @@ The Rust build tool and package manager, Cargo, is required.
 Installation instructions can be found here: https://www.rust-lang.org/learn/get-started
 
 # Compiling and running from source
-Compilation requires two env variables: `FLOQ_DOMAIN` and `FLOQ_API_DOMAIN`.
+Compilation optionally uses two env variables: `FLOQ_DOMAIN` and `FLOQ_API_DOMAIN`.
 These are used to select what environment you would like to connect to.
+
+Blank (test) [default]
+```
+export FLOQ_DOMAIN=https://blank-test.floq.no
+export FLOQ_API_DOMAIN=https://api-blank-test.floq.no
+```
 
 Blank (prod)
 ```
 export FLOQ_DOMAIN=https://inni.blank.no
 export FLOQ_API_DOMAIN=https://api-blank.floq.no
-```
-
-Blank (test)
-```
-export FLOQ_DOMAIN=https://blank-test.floq.no
-export FLOQ_API_DOMAIN=https://api-blank-test.floq.no
 ```
 
 Folq (prod)

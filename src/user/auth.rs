@@ -1,4 +1,4 @@
-use crate::http_client::FLOQ_DOMAIN;
+use crate::http_client::floq_domain;
 
 use std::io::Write;
 use std::{collections::HashMap, sync::mpsc};
@@ -37,7 +37,12 @@ pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUse
 
     writeln!(out)?;
     writeln!(out, "Vennligst åpne denne lenken i nettleseren din:")?;
-    writeln!(out, "{}/login/oauth?to=http://localhost:{}", FLOQ_DOMAIN, port)?;
+    writeln!(
+        out,
+        "{}/login/oauth?to=http://localhost:{}",
+        floq_domain(),
+        port
+    )?;
     writeln!(out)?;
 
     loop {
@@ -116,7 +121,7 @@ impl RefreshAccessTokenResponse {
 pub async fn refresh_access_token(refresh_token: &str) -> Result<AuthorizedUser, Box<dyn Error>> {
     let request_body = RefreshAccessTokenRequest { refresh_token };
     let request_body = serde_json::to_string(&request_body)?;
-    let request = surf::post(format!("{}/login/oauth/refresh", FLOQ_DOMAIN))
+    let request = surf::post(format!("{}/login/oauth/refresh", floq_domain()))
         .header("Content-Type", "application/json")
         .body(request_body);
 
