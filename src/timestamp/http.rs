@@ -1,6 +1,6 @@
 use super::{ProjectTimestamp, Timestamp};
+use crate::http_client::floq_api_domain;
 use crate::http_client::HttpClient;
-use crate::http_client::FLOQ_API_DOMAIN;
 
 use std::error::Error;
 
@@ -50,7 +50,7 @@ impl HttpClient {
     ) -> Result<Duration, Box<dyn Error>> {
         let url = format!(
             "{}/time_entry?select=minutes&employee=eq.{}&project=eq.{}&date=eq.{}",
-            FLOQ_API_DOMAIN,
+            floq_api_domain(),
             self.employee_id,
             project_id,
             date.format("%Y-%m-%d"),
@@ -98,7 +98,7 @@ impl HttpClient {
         .serialize(serde_json::value::Serializer)?
         .to_string();
 
-        let url = format!("{}/rpc/projects_for_employee_for_date", FLOQ_API_DOMAIN);
+        let url = format!("{}/rpc/projects_for_employee_for_date", floq_api_domain());
         let mut response: Response = surf::post(url)
             .body(body)
             .header("Content-Type", "application/json")
@@ -143,7 +143,7 @@ impl HttpClient {
         .serialize(serde_json::value::Serializer)?
         .to_string();
 
-        let response = surf::post(format!("{}/time_entry", FLOQ_API_DOMAIN))
+        let response = surf::post(format!("{}/time_entry", floq_api_domain()))
             .body(body)
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", self.access_token))

@@ -1,6 +1,6 @@
 use crate::cmd::Subcommand;
+use crate::http_client::floq_api_domain;
 use crate::http_client::HttpClient;
-use crate::http_client::FLOQ_API_DOMAIN;
 use crate::print::TableMaker;
 use crate::user;
 
@@ -90,7 +90,7 @@ impl HttpClient {
     pub async fn get_projects(&self) -> Result<Vec<Project>, Box<dyn Error>> {
         let url = format!(
             "{}/projects?select=id,name,active,customer{{id,name}}",
-            FLOQ_API_DOMAIN
+            floq_api_domain()
         );
         let mut response: Response = surf::get(url)
             .header("Accept", "application/json")
@@ -163,7 +163,7 @@ impl HttpClient {
 
         let url = format!(
             "{}/rpc/projects_info_for_employee_in_period",
-            FLOQ_API_DOMAIN
+            floq_api_domain()
         );
         let mut response: Response = surf::post(url)
             .header("Content-Type", "application/json")
