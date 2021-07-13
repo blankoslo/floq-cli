@@ -197,7 +197,8 @@ async fn execute<T: Write + Send>(
             let date = base_date + Duration::days(days_until_date);
 
             vec![date.naive_local()]
-        } else { // fallback to todays date
+        } else {
+            // default to todays date
             vec![Utc::now().date().naive_local()]
         }
     };
