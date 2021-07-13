@@ -13,10 +13,13 @@ mod project;
 mod timestamp;
 mod user;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 fn main() -> Result<(), Box<dyn Error>> {
+
     let matches = App::new("floq")
         .about("Floq i din lokale terminal")
-        .version("0.1")
+        .version(VERSION)
         .author("Rust-gjengen")
         .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(user::subcommand_app())
