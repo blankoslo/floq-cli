@@ -17,6 +17,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
             .long("dato")
             .short('d')
             .takes_value(true)
+            .display_order(1)
             .about("Dagen du ønsker å vise timer for.\nF.eks. \"--dato 2021-03-01\""),
     )
     .arg(
@@ -25,8 +26,9 @@ pub fn subcommand_app<'help>() -> App<'help> {
             .takes_value(true)
             .requires("til")
             .conflicts_with("dato")
+            .display_order(2)
             .about(
-                "Første dagen å vise timer for, settes til mandag denne uken hvis utelatt.\nF.eks. \"--fra 2021-03-01\" ",
+                "Første dagen å vise timer for, settes til mandag denne uken hvis utelatt.\nEr inklusiv. F.eks. \"--fra 2021-03-01\" ",
             ),
     )
     .arg(
@@ -35,27 +37,44 @@ pub fn subcommand_app<'help>() -> App<'help> {
             .takes_value(true)
             .requires("fra")
             .conflicts_with("dato")
+            .display_order(3)
             .about(
-                "Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt.\nF.eks. \"--til 2021-03-05\"",
+                "Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt.\nEr inklusiv. F.eks. \"--til 2021-03-05\"",
             ),
+    )
+    .arg(
+        Arg::new("forrige-uke")
+            .long("forrige-uke")
+            .conflicts_with_all(&["dato", "fra", "til", "neste-uke"])
+            .display_order(4)
+            .about("Vis timer ført i forrige uke.")
+    )
+    .arg(
+        Arg::new("neste-uke")
+            .long("neste-uke")
+            .conflicts_with_all(&["dato", "fra", "til", "forrige-uke"])
+            .display_order(5)
+            .about("Vis timer ført for neste uke.")
     )
     .arg(
         Arg::new("snu-tabell")
             .long("snu-tabell")
+            .conflicts_with("ikke-snu-tabell")
+            .display_order(6)
             .about(
 "Snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
 Dette blir gjort automatisk hvis det skal vises timer for mer enn én uke."
             )
-            .conflicts_with("ikke-snu-tabell")
     )
     .arg(
         Arg::new("ikke-snu-tabell")
             .long("ikke-snu-tabell")
+            .conflicts_with("snu-tabell")
+            .display_order(7) 
             .about(
 "Ikke snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
 Stopper det fra å bli gjort automatisk hvis det skal vises timer for mer enn én uke."
             )
-            .conflicts_with("snu-tabell")
     )
 }
 
@@ -148,25 +167,37 @@ async fn execute<T: Write + Send>(
 
         table_maker.into_table(timestamps.as_slice()).print(out)?;
     } else {
-        let from = matches
-            .value_of("fra")
-            .map(|from| from.parse::<NaiveDate>())
-            .unwrap_or_else(|| {
-                let today = Utc::now().date();
-                let days_from_monday = today.weekday().num_days_from_monday();
+        let from = if let Some(from) = matches.value_of("fra") {
+            from.parse::<NaiveDate>()?
+        } else {
+            let base_date = if matches.is_present("forrige-uke") {
+                Utc::now().date() - Duration::weeks(1)
+            } else if matches.is_present("neste_uke") {
+                Utc::now().date() + Duration::weeks(1)
+            } else {
+                // default to monday this week
+                Utc::now().date()
+            };
+            let days_from_monday = base_date.weekday().num_days_from_monday() as i64;
 
-                Ok(today.naive_local() - Duration::days(1) * days_from_monday as i32)
-            })?;
-        let to = matches
-            .value_of("til")
-            .map(|from| from.parse::<NaiveDate>())
-            .unwrap_or_else(|| {
-                let today = Utc::now().date();
-                let days_from_monday = today.weekday().num_days_from_monday();
-                let sunday = today + Duration::days(6 - days_from_monday as i64);
+            base_date.naive_local() - Duration::days(days_from_monday)
+        };
 
-                Ok(sunday.naive_local())
-            })?;
+        let to = if let Some(to) = matches.value_of("til") {
+            to.parse::<NaiveDate>()?
+        } else {
+            let base_date = if matches.is_present("forrige-uke") {
+                Utc::now().date() - Duration::weeks(1)
+            } else if matches.is_present("neste_uke") {
+                Utc::now().date() + Duration::weeks(1)
+            } else {
+                // default to monday this week
+                Utc::now().date()
+            };
+            let days_from_monday = base_date.weekday().num_days_from_monday() as i64;
+
+            base_date.naive_local() + Duration::days(6 - days_from_monday as i64)
+        };
 
         // only one of these two can be true, if none are then we let the number of days in period decide
         let turn_table = matches.is_present("snu-tabell");

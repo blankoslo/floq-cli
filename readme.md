@@ -46,7 +46,7 @@ If it's your first time using this tool, or you have changed the environment the
 
 or 
 
-`floq logg-inn`
+`floq bruker logg-inn`
 
 As stated above, you must also re-authenticate yourself whenever you're changing environment since the same configuration file is used.
 

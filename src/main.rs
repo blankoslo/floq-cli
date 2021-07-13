@@ -17,7 +17,6 @@ mod user;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() -> Result<(), Box<dyn Error>> {
-
     let matches = App::new("floq")
         .about("Floq i din lokale terminal")
         .version(VERSION)
