@@ -19,7 +19,9 @@ jwt = "0.13"
 toml = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
 clap = "3.0.0-beta.1"
-prettytable-rs = "^0.8"
+prettytable-rs = "0.8"
+cli-table = { version = "0.4", features = ["derive"] }
+termcolor = "1.1.2"
 
 [dev-dependencies]
 demonstrate = { version = "0.4" }
