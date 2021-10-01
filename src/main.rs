@@ -1,8 +1,8 @@
 use cmd::Subcommand;
 
-use std::error::Error;
 use std::io;
 
+use anyhow::Result;
 use async_std::task;
 use clap::{App, AppSettings};
 
@@ -16,7 +16,7 @@ mod user;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     let matches = App::new("floq")
         .about("Floq i din lokale terminal")
         .version(VERSION)

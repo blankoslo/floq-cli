@@ -1,7 +1,8 @@
 use crate::{cmd::Subcommand, http_client::HttpClient, time, user};
 
-use std::{error::Error, fmt::Display, io::Write};
+use std::{fmt::Display, io::Write};
 
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use clap::{App, AppSettings, Arg, ArgMatches};
@@ -108,7 +109,7 @@ impl<T: Write + Send> Subcommand<T> for TimestampSubcommand {
         matches.subcommand_name() == Some(SUBCOMMAND_NAME)
     }
 
-    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<(), Box<dyn Error>> {
+    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<()> {
         let user = user::load_user_from_config(out).await?;
         let client = HttpClient::from_user(&user);
 
@@ -154,24 +155,38 @@ async fn execute<T: Write + Send>(
     matches: &ArgMatches,
     out: &mut T,
     client: HttpClient,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     let project_id = matches.value_of("prosjekt").unwrap();
 
     let hours: f32 = matches.value_of("timer").unwrap().parse()?;
     let time = Duration::minutes((hours * 60.0) as i64);
     if time > Duration::days(1) {
-        return Err(format!("Det er ikke mulig å føre {} timer på én dag", hours).into());
+        return Err(anyhow!(
+            "Det er ikke mulig å føre {} timer på én dag",
+            hours
+        ));
     }
 
     let dates = if matches.is_present("fra") {
-        let from: NaiveDate = matches.value_of("fra").unwrap().parse::<NaiveDate>()?;
-        let to: NaiveDate = matches.value_of("til").unwrap().parse::<NaiveDate>()?;
+        let from: NaiveDate = matches
+            .value_of("fra")
+            .unwrap()
+            .parse::<NaiveDate>()
+            .with_context(|| "Fra dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")?;
+        let to: NaiveDate = matches
+            .value_of("til")
+            .unwrap()
+            .parse::<NaiveDate>()
+            .with_context(|| "Til dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")?;
 
         from.iter_days().take_while(|d| d <= &to).collect()
     } else if matches.is_present("dato") {
         let date: NaiveDate = matches
             .value_of("dato")
-            .map(|date| date.parse::<NaiveDate>())
+            .map(|date| {
+                date.parse::<NaiveDate>()
+                    .with_context(|| "Dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")
+            })
             .unwrap_or_else(|| Ok(Utc::now().date().naive_local()))?;
 
         vec![date]
@@ -236,7 +251,7 @@ async fn set_timetsamp<'a>(
     time: &'a Duration,
     date: &'a NaiveDate,
     client: &HttpClient,
-) -> Result<SetTimestampResult<'a>, Box<dyn Error>> {
+) -> Result<SetTimestampResult<'a>> {
     let current_time = client
         .get_timestamp_on_project_for_date(project_id, date)
         .await?;

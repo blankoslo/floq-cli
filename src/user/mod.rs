@@ -1,7 +1,8 @@
 use crate::cmd::Subcommand;
 
-use std::{error::Error, io::Write};
+use std::io::Write;
 
+use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use clap::{App, AppSettings, ArgMatches};
@@ -34,7 +35,7 @@ impl<T: Write + Send> Subcommand<T> for UserSubcommand {
         matches.subcommand_name() == Some(SUBCOMMAND_NAME)
     }
 
-    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<(), Box<dyn Error>> {
+    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<()> {
         match matches.subcommand() {
             Some(("logg-inn", _)) => {
                 authorize_user(out).await?;
@@ -62,7 +63,7 @@ pub struct Employee {
     name: String,
 }
 
-pub async fn authorize_user<OUT: Write + Send>(out: &mut OUT) -> Result<User, Box<dyn Error>> {
+pub async fn authorize_user<OUT: Write + Send>(out: &mut OUT) -> Result<User> {
     let authorized_user = auth::authorize(out).await?;
 
     let employee = http::get_logged_in_employee(&authorized_user.access_token).await?;
@@ -88,9 +89,7 @@ pub async fn authorize_user<OUT: Write + Send>(out: &mut OUT) -> Result<User, Bo
     })
 }
 
-pub async fn load_user_from_config<OUT: Write + Send>(
-    out: &mut OUT,
-) -> Result<User, Box<dyn Error>> {
+pub async fn load_user_from_config<OUT: Write + Send>(out: &mut OUT) -> Result<User> {
     let config = config::load_config().await?;
     let now = Utc::now().naive_utc();
 
