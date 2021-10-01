@@ -1,8 +1,8 @@
-use std::error::Error;
 use std::{env, io::ErrorKind};
 
 use async_std::fs;
 
+use anyhow::{Context, Result};
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +30,7 @@ fn file_path() -> String {
     home_path() + "/.floq/user-config.toml"
 }
 
-pub async fn load_config() -> Result<Option<UserConfig>, Box<dyn Error>> {
+pub async fn load_config() -> Result<Option<UserConfig>> {
     let r = fs::read_to_string(file_path())
         .await
         .and_then(|s| toml::from_str::<UserConfig>(s.as_str()).map_err(|e| e.into()))
@@ -45,32 +45,35 @@ pub async fn load_config() -> Result<Option<UserConfig>, Box<dyn Error>> {
     }
 }
 
-pub async fn update_config(config: &UserConfig) -> Result<(), Box<dyn Error>> {
-    let file_content = toml::to_string(config)?;
+pub async fn update_config(config: &UserConfig) -> Result<()> {
+    let file_content = toml::to_vec(config).with_context(|| {
+        "Klarte ikke å bygge inneholdet i konfigigurasjonsfilen, vennligst logg inn på nytt"
+    })?;
 
     match fs::create_dir(folder_path()).await {
-        Ok(()) => (),
+        Ok(_) => Ok(()),
         Err(e) => match e.kind() {
-            ErrorKind::AlreadyExists => (),
-            _ => return Err(Box::new(e)),
+            ErrorKind::AlreadyExists => Ok(()),
+            _ => Err(e),
         },
     }
+    .with_context(|| format!("Klarte ikke å opprette mappen {}", folder_path()))?;
 
-    fs::write(file_path(), file_content)
-        .await
-        .map_err(|e| e.into())
+    fs::write(file_path(), file_content).await.with_context(|| {
+        format!(
+            "Klarte ikke å skrive til konfirgurasjonsfilen {}",
+            file_path()
+        )
+    })
 }
 
-pub async fn delete_config() -> Result<(), Box<dyn Error>> {
-    let r = fs::remove_file(file_path())
-        .await
-        .map_err(|e| match e.kind() {
+pub async fn delete_config() -> Result<()> {
+    match fs::remove_file(file_path()).await {
+        Ok(_) => Ok(()),
+        Err(e) => match e.kind() {
             ErrorKind::NotFound => Ok(()),
             _ => Err(e),
-        });
-
-    match r {
-        Ok(_) => Ok(()),
-        Err(e) => e.map_err(|e| e.into()),
+        },
     }
+    .with_context(|| format!("Klarte ikke å slette konfirgurasjonsfilen {}", file_path()))
 }

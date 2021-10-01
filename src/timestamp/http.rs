@@ -1,9 +1,8 @@
 use super::history::{ProjectTimestamp, Timestamp};
 use crate::http_client::floq_api_domain;
-use crate::http_client::HttpClient;
+use crate::http_client::{HandleInvalidToken, HandleMalformedBody, HttpClient};
 
-use std::error::Error;
-
+use anyhow::{anyhow, Context, Result};
 use chrono::{Duration, NaiveDate};
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -47,7 +46,7 @@ impl HttpClient {
         &self,
         project_id: &str,
         date: &NaiveDate,
-    ) -> Result<Duration, Box<dyn Error>> {
+    ) -> Result<Duration> {
         let url = format!(
             "{}/time_entry?select=minutes&employee=eq.{}&project=eq.{}&date=eq.{}",
             floq_api_domain(),
@@ -60,10 +59,18 @@ impl HttpClient {
             .header("Accept", "application/json")
             .header("Authorization", format!("Bearer {}", self.access_token))
             .send()
-            .await?;
+            .await
+            .handle_floq_response()
+            .with_context(|| "Noe gikk galt under henting av dine timer for et prosjekt")?;
 
-        let response: Vec<TimeEntry> = response.body_json().await?;
-        let minutes = response.iter().map(|entry| entry.minutes).sum();
+        let minutes = response
+            .body_json::<Vec<TimeEntry>>()
+            .await
+            .handle_malformed_body()
+            .with_context(|| "Klarte ikke lese responsen fra /time_entry")?
+            .iter()
+            .map(|entry| entry.minutes)
+            .sum();
 
         Ok(Duration::minutes(minutes))
     }
@@ -72,7 +79,7 @@ impl HttpClient {
         &self,
         from: NaiveDate,
         to: NaiveDate,
-    ) -> Result<Vec<ProjectTimestamp>, Box<dyn Error>> {
+    ) -> Result<Vec<ProjectTimestamp>> {
         let difference = to.signed_duration_since(from).num_days();
 
         let mut futures: FuturesUnordered<_> = (0..=difference)
@@ -87,10 +94,7 @@ impl HttpClient {
         Ok(results.into_iter().flatten().collect())
     }
 
-    pub async fn get_timestamps_for_date(
-        &self,
-        date: NaiveDate,
-    ) -> Result<Vec<ProjectTimestamp>, Box<dyn Error>> {
+    pub async fn get_timestamps_for_date(&self, date: NaiveDate) -> Result<Vec<ProjectTimestamp>> {
         let body = TimestampedProjectsRequest {
             employee_id: self.employee_id,
             date,
@@ -105,9 +109,17 @@ impl HttpClient {
             .header("Accept", "application/json")
             .header("Authorization", format!("Bearer {}", self.access_token))
             .send()
-            .await?;
+            .await
+            .handle_floq_response()
+            .with_context(|| "Noe gikk galt under henting av dine timer for en dag")?;
 
-        let response: Vec<TimestampedProjectsResponse> = response.body_json().await?;
+        let response: Vec<TimestampedProjectsResponse> = response
+            .body_json()
+            .await
+            .handle_malformed_body()
+            .with_context(|| {
+                "Klarte ikke å lese responsen fra /rpc/projects_for_employee_for_date"
+            })?;
 
         Ok(response
             .iter()
@@ -132,7 +144,7 @@ impl HttpClient {
         project_id: &str,
         date: &NaiveDate,
         time: Duration,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         let body = TimestampRequest {
             creator: self.employee_id,
             employee: self.employee_id,
@@ -148,15 +160,16 @@ impl HttpClient {
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", self.access_token))
             .send()
-            .await?;
+            .await
+            .handle_floq_response()
+            .with_context(|| "Noe gikk galt under føring av timer")?;
 
         match response.status() {
             StatusCode::Created => Ok(()),
-            sc => Err(format!(
-                "Unexpected status code in response from POST /time_entry {}",
+            sc => Err(anyhow!(
+                "Fikk en annen statuskode enn forventet fra POST /time_entry {}",
                 sc
-            )
-            .into()),
+            )),
         }
     }
 }

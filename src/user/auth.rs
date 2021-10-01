@@ -1,9 +1,10 @@
-use crate::http_client::floq_domain;
+use crate::http_client::{floq_domain, HandleInvalidToken, HandleMalformedBody};
 
 use std::io::Write;
+use std::time::Duration;
 use std::{collections::HashMap, sync::mpsc};
-use std::{error::Error, time::Duration};
 
+use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, FixedOffset, NaiveDateTime};
 use rouille::{Request, Response};
 use serde::{Deserialize, Serialize};
@@ -15,8 +16,8 @@ pub struct AuthorizedUser {
     pub expires_at: NaiveDateTime,
 }
 
-pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUser, Box<dyn Error>> {
-    let (tx, rx) = mpsc::sync_channel::<Result<AuthorizedUser, String>>(0);
+pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUser> {
+    let (tx, rx) = mpsc::sync_channel::<Result<AuthorizedUser>>(0);
 
     let server = rouille::Server::new("0.0.0.0:0", move |request| {
         match handle_callback(request) {
@@ -26,12 +27,12 @@ pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUse
             },
             Err(e) => {
                 eprintln!("Error on handle callback from Floq Auth: {}", e);
-                tx.send(Err(e.to_string())).unwrap();
+                tx.send(Err(e)).unwrap();
                 Response::text("An error occurred while trying to handle Auth callback, see command output for more details")
             }
         }
     })
-    .map_err(|e| format!("{}", e))?;
+    .map_err(|e| anyhow!("{}", e))?;
 
     let port = server.server_addr().port();
 
@@ -48,7 +49,7 @@ pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUse
     loop {
         match rx.try_iter().next() {
             Some(Ok(tokens)) => break Ok(tokens),
-            Some(Err(e)) => break Err(e.into()),
+            Some(Err(e)) => break Err(e),
             None => {
                 std::thread::sleep(Duration::from_millis(250));
                 server.poll();
@@ -57,35 +58,47 @@ pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUse
     }
 }
 
-fn handle_callback(request: &Request) -> Result<AuthorizedUser, &str> {
+fn handle_callback(request: &Request) -> Result<AuthorizedUser> {
     let mut params =
         match serde_urlencoded::from_str::<HashMap<String, String>>(request.raw_query_string()) {
             Ok(p) => p,
             Err(e) => {
-                eprintln!("Deserialization of query params failed: {:?}", e);
-                return Err("Unable to parse callback request URL");
+                return Err(anyhow!("Unable to parse callback request URL"))
+                    .with_context(|| format!("Deserialization of query params failed: {:?}", e));
             }
         };
 
     let access_token = match params.remove("access_token") {
         Some(at) => at,
-        None => return Err("Required param 'access_token' is missing from callback"),
+        None => {
+            return Err(anyhow!(
+                "Required param 'access_token' is missing from callback"
+            ))
+        }
     };
 
     let refresh_token = match params.remove("refresh_token") {
         Some(rt) => rt,
-        None => return Err("Required param 'refresh_token' is missing from callback"),
+        None => {
+            return Err(anyhow!(
+                "Required param 'refresh_token' is missing from callback"
+            ))
+        }
     };
 
     let expires_at: String = match params.remove("expiry_date") {
         Some(ea) => ea,
-        None => return Err("Required param 'expiry_date' is missing from callback"),
+        None => {
+            return Err(anyhow!(
+                "Required param 'expiry_date' is missing from callback"
+            ))
+        }
     };
     let expires_at: DateTime<FixedOffset> = match expires_at.parse() {
         Ok(ea) => ea,
         Err(e) => {
             eprintln!("Parse DateTime error: {:?}", e);
-            return Err("Param 'expiry_date' is in an invalid format");
+            return Err(anyhow!("Param 'expiry_date' is in an invalid format"));
         }
     };
     let expires_at = expires_at.naive_utc();
@@ -118,20 +131,23 @@ impl RefreshAccessTokenResponse {
     }
 }
 
-pub async fn refresh_access_token(refresh_token: &str) -> Result<AuthorizedUser, Box<dyn Error>> {
+pub async fn refresh_access_token(refresh_token: &str) -> Result<AuthorizedUser> {
     let request_body = RefreshAccessTokenRequest { refresh_token };
     let request_body = serde_json::to_string(&request_body)?;
     let request = surf::post(format!("{}/login/oauth/refresh", floq_domain()))
         .header("Content-Type", "application/json")
         .body(request_body);
 
-    let mut response = request.send().await?;
+    let mut response = request.send()
+        .await
+        .handle_floq_response()
+        .with_context(|| "Noe gikk galt under oppdatering av innloggingsinformasjonen, vennligst logg inn på nytt")?;
 
-    if response.status().is_client_error() || response.status().is_server_error() {
-        Err(format!("Got status {}", response.status()).into())
-    } else {
-        let tokens: RefreshAccessTokenResponse = response.body_json().await?;
+    let tokens: RefreshAccessTokenResponse = response
+        .body_json()
+        .await
+        .handle_malformed_body()
+        .with_context(|| "Klarte ikke å lese responsen fra /login/oauth/refresh")?;
 
-        Ok(tokens.into_authorized_user(refresh_token))
-    }
+    Ok(tokens.into_authorized_user(refresh_token))
 }

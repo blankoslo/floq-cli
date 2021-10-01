@@ -1,16 +1,18 @@
 use crate::cmd::Subcommand;
 use crate::http_client::floq_api_domain;
-use crate::http_client::HttpClient;
+use crate::http_client::{HandleInvalidToken, HandleMalformedBody, HttpClient};
 use crate::print::TableMaker;
 use crate::user;
 
-use std::{error::Error, io::Write};
+use std::io::Write;
 
 use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use clap::{App, Arg, ArgMatches};
 use serde::{Deserialize, Serialize};
 use surf::Response;
+
+use anyhow::{Context, Result};
 
 const SUBCOMMAND_NAME: &str = "prosjekter";
 
@@ -46,7 +48,7 @@ impl<T: Write + Send> Subcommand<T> for ProjectsSubcommand {
         matches.subcommand_name() == Some(SUBCOMMAND_NAME)
     }
 
-    async fn execute(&self, matches: &clap::ArgMatches, out: &mut T) -> Result<(), Box<dyn Error>> {
+    async fn execute(&self, matches: &clap::ArgMatches, out: &mut T) -> Result<()> {
         let user = user::load_user_from_config(out).await?;
         let client = HttpClient::from_user(&user);
 
@@ -87,7 +89,7 @@ pub struct Customer {
 }
 
 impl HttpClient {
-    pub async fn get_projects(&self) -> Result<Vec<Project>, Box<dyn Error>> {
+    pub async fn get_projects(&self) -> Result<Vec<Project>> {
         let url = format!(
             "{}/projects?select=id,name,active,customer{{id,name}}",
             floq_api_domain()
@@ -96,9 +98,11 @@ impl HttpClient {
             .header("Accept", "application/json")
             .header("Authorization", format!("Bearer {}", self.access_token))
             .send()
-            .await?;
+            .await
+            .handle_floq_response()
+            .with_context(|| "Noe gikk galt under henting av alle prosjekter")?;
 
-        let projects: Vec<Project> = response.body_json().await?;
+        let projects: Vec<Project> = response.body_json().await.handle_malformed_body()?;
 
         Ok(projects)
     }
@@ -134,9 +138,7 @@ impl ProjectForEmployeeResponse {
 }
 
 impl HttpClient {
-    pub async fn get_current_timestamped_projects_for_employee(
-        &self,
-    ) -> Result<Vec<Project>, Box<dyn Error>> {
+    pub async fn get_current_timestamped_projects_for_employee(&self) -> Result<Vec<Project>> {
         let today = Utc::now().date();
 
         self.get_timestamped_projects_for_employee(today.naive_local())
@@ -146,7 +148,7 @@ impl HttpClient {
     pub async fn get_timestamped_projects_for_employee(
         &self,
         date: NaiveDate,
-    ) -> Result<Vec<Project>, Box<dyn Error>> {
+    ) -> Result<Vec<Project>> {
         let lower = date - Duration::weeks(2);
         let upper = date + Duration::days(1) * (6 - date.weekday().num_days_from_monday() as i32); // sunday of the same week as date
 
@@ -171,9 +173,14 @@ impl HttpClient {
             .header("Authorization", format!("Bearer {}", self.access_token))
             .body(body)
             .send()
-            .await?;
+            .await
+            .handle_floq_response()
+            .with_context(|| "Noe gikk galt under henting av dine prosjekter")?;
 
-        let projects: Vec<ProjectForEmployeeResponse> = response.body_json().await?;
+        let projects: Vec<ProjectForEmployeeResponse> = response.body_json()
+            .await
+            .handle_malformed_body()
+            .with_context(|| "Noe gikk kalt under lesing av responsen fra /rpc/projects_info_for_employee_in_period")?;
 
         Ok(projects.into_iter().map(|r| r.into_project()).collect())
     }

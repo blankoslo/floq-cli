@@ -1,8 +1,9 @@
 use super::{TimestampDate, TimestampHours};
 use crate::{cmd::Subcommand, http_client::HttpClient, print, user};
 
-use std::{collections::HashMap, error::Error, io::Write};
+use std::{collections::HashMap, io::Write};
 
+use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
 use clap::{App, Arg, ArgMatches};
@@ -70,7 +71,7 @@ Dette blir gjort automatisk hvis det skal vises timer for mer enn én uke."
         Arg::new("ikke-snu-tabell")
             .long("ikke-snu-tabell")
             .conflicts_with("snu-tabell")
-            .display_order(7) 
+            .display_order(7)
             .about(
 "Ikke snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
 Stopper det fra å bli gjort automatisk hvis det skal vises timer for mer enn én uke."
@@ -90,7 +91,7 @@ impl<T: Write + Send> Subcommand<T> for TimestampHistorySubcommand {
         matches.subcommand_name() == Some(SUBCOMMAND_NAME)
     }
 
-    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<(), Box<dyn Error>> {
+    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<()> {
         let user = user::load_user_from_config(out).await?;
         let client = HttpClient::from_user(&user);
 
@@ -146,7 +147,7 @@ async fn execute<T: Write + Send>(
     matches: &ArgMatches,
     out: &mut T,
     client: HttpClient,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     if matches.is_present("dato") {
         let date = matches.value_of("dato").unwrap().parse()?;
 
@@ -269,7 +270,7 @@ pub async fn get_timestamps_for_period(
     client: HttpClient,
     from: NaiveDate,
     to: NaiveDate,
-) -> Result<Vec<ProjectTimestamps>, Box<dyn Error>> {
+) -> Result<Vec<ProjectTimestamps>> {
     let project_timestamps = client.get_timestamps_for_period(from, to).await?;
 
     let project_to_timestamps: HashMap<String, ProjectTimestamps> = project_timestamps
