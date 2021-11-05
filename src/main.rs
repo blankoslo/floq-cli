@@ -28,7 +28,7 @@ fn main() -> Result<()> {
         .subcommand(timestamp::history::subcommand_app().display_order(4))
         .get_matches();
 
-    let commands: Vec<Box<dyn Subcommand<_>>> = vec![
+    let commands: [Box<dyn Subcommand<_>>; 4] = [
         user::subcommand(),
         project::subcommand(),
         timestamp::subcommand(),
