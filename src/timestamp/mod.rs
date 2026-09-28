@@ -1,19 +1,18 @@
-use crate::{cmd::Subcommand, http_client::HttpClient, time, user};
+use crate::{http_client::HttpClient, time, user};
 
 use std::{fmt::Display, io::Write};
 
 use anyhow::{anyhow, Context, Result};
-use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use clap::{App, AppSettings, Arg, ArgMatches};
+use clap::{value_parser, Arg, ArgMatches, Command};
 use futures::{stream::FuturesUnordered, StreamExt};
 
 pub mod history;
 mod http;
 
-const SUBCOMMAND_NAME: &str = "timeføring";
+pub const SUBCOMMAND_NAME: &str = "timeføring";
 
-pub fn subcommand_app<'help>() -> App<'help> {
+pub fn subcommand_app() -> Command {
     let days = time::Weekdays::all();
 
     let day_args: Vec<Arg> = days
@@ -31,48 +30,50 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .visible_alias(weekday.short_name)
                 .conflicts_with("dato")
                 .conflicts_with_all(&conflicts)
-                .about("Ukedag det skal føres timer på, relativt til dagens dato")
+                .help("Ukedag det skal føres timer på, relativt til dagens dato")
                 .display_order(day.as_chrono_weekday().num_days_from_monday() as usize + 1)
         })
         .collect();
 
-    App::new(SUBCOMMAND_NAME)
+    Command::new(SUBCOMMAND_NAME)
         .about("Før timer på et prosjekt")
-        .setting(AppSettings::SubcommandsNegateReqs)
-        .arg(Arg::new("prosjekt").about("Prosjektet du ønsker å føre timer på").required(true).index(1))
+        //.setting(AppSettings::SubcommandsNegateReqs)
+        .arg(Arg::new("prosjekt").help("Prosjektet du ønsker å føre timer på").required(true).index(1))
         .arg(
             Arg::new("timer")
                 .long("timer")
                 .short('t')
-                .takes_value(true)
+                .num_args(1)
                 .default_value("7.5")
+                .value_parser(value_parser!(f32))
                 .hide_default_value(true)
-                .about("Antall timer du ønsker å føre, settes til \"7.5\" hvis utelatt")
+                .help("Antall timer du ønsker å føre, settes til \"7.5\" hvis utelatt")
         )
         .arg(
             Arg::new("dato")
                 .long("dato")
                 .short('d')
-                .takes_value(true)
-                .about("Dagen det skal føres timer på, settes til i dag hvis utelatt.\nF.eks. \"--dato 2021-03-01\""),
+                .num_args(1)
+                .value_parser(value_parser!(NaiveDate))
+                .help("Dagen det skal føres timer på, settes til i dag hvis utelatt.\nF.eks. \"--dato 2021-03-01\""),
         )
         .arg(
             Arg::new("fra")
                 .long("fra")
-                .takes_value(true)
+                .num_args(1)
                 .requires("til")
                 .conflicts_with("dato")
-                .about(
+                .help(
                     "Brukes samme med --til for å føre timer i en periode, er inklusiv.\nF.eks. \"--fra 2021-03-01\" ",
                 ),
         )
         .arg(
             Arg::new("til")
                 .long("til")
-                .takes_value(true)
+                .num_args(1)
                 .requires("fra")
                 .conflicts_with("dato")
-                .about(
+                .help(
                     "Brukes samme med --fra for å føre timer i en periode, er inklusiv.\nF.eks. \"--til 2021-03-05\"",
                 ),
         )
@@ -81,7 +82,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .long("forrige-uke")
                 .conflicts_with_all(&["neste-uke", "dato", "fra", "til" ])
                 .display_order(8) // one more than --søndag
-                .about(
+                .help(
                     "Setter relativ dato til forrige uke. Brukes sammen med ukedagene til å velge en dag i forrige uke"
                 )
         )
@@ -90,31 +91,11 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .long("neste-uke")
                 .conflicts_with_all(&["forrige-uke", "dato", "fra", "til" ])
                 .display_order(9) // one more than --forrige-uke
-                .about(
+                .help(
                     "Setter relativ dato til neste uke. Brukes sammen med ukedagene til å velge en dag i neste uke"
                 )
         )
         .args(day_args)
-}
-
-pub fn subcommand<T: Write + Send>() -> Box<dyn Subcommand<T>> {
-    Box::new(TimestampSubcommand)
-}
-
-struct TimestampSubcommand;
-
-#[async_trait(?Send)]
-impl<T: Write + Send> Subcommand<T> for TimestampSubcommand {
-    fn matches(&self, matches: &ArgMatches) -> bool {
-        matches.subcommand_name() == Some(SUBCOMMAND_NAME)
-    }
-
-    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<()> {
-        let user = user::load_user_from_config(out).await?;
-        let client = HttpClient::from_user(&user);
-
-        execute(matches, out, client).await
-    }
 }
 
 pub struct TimestampHours<'a>(&'a Duration);
@@ -151,14 +132,12 @@ struct SetTimestampResult<'a> {
     time_diff: Duration,
 }
 
-async fn execute<T: Write + Send>(
-    matches: &ArgMatches,
-    out: &mut T,
-    client: HttpClient,
-) -> Result<()> {
-    let project_id = matches.value_of("prosjekt").unwrap();
+pub async fn execute<OUT: Write + Send>(matches: &ArgMatches, mut out: OUT) -> Result<()> {
+    let user = user::load_user_from_config(&mut out).await?;
+    let client = HttpClient::from_user(&user);
+    let project_id = matches.get_one::<String>("prosjekt").unwrap();
 
-    let hours: f32 = matches.value_of("timer").unwrap().parse()?;
+    let hours: f32 = matches.get_one::<String>("timer").unwrap().parse()?;
     let time = Duration::minutes((hours * 60.0) as i64);
     if time > Duration::days(1) {
         return Err(anyhow!(
@@ -167,22 +146,22 @@ async fn execute<T: Write + Send>(
         ));
     }
 
-    let dates = if matches.is_present("fra") {
+    let dates = if matches.get_flag("fra") {
         let from: NaiveDate = matches
-            .value_of("fra")
+            .get_one::<String>("fra")
             .unwrap()
             .parse::<NaiveDate>()
             .with_context(|| "Fra dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")?;
         let to: NaiveDate = matches
-            .value_of("til")
+            .get_one::<String>("til")
             .unwrap()
             .parse::<NaiveDate>()
             .with_context(|| "Til dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")?;
 
         from.iter_days().take_while(|d| d <= &to).collect()
-    } else if matches.is_present("dato") {
+    } else if matches.get_flag("dato") {
         let date: NaiveDate = matches
-            .value_of("dato")
+            .get_one::<String>("dato")
             .map(|date| {
                 date.parse::<NaiveDate>()
                     .with_context(|| "Dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")

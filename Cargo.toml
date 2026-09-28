@@ -7,10 +7,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-std = "1.6"
 futures = "0.3"
-async-trait = "0.1"
-surf = "2.1"
 rouille = "3.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -19,8 +16,17 @@ jwt = "0.13"
 toml = "0.5"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-clap = "3.0.0-beta.1"
+clap = "4.4"
 prettytable-rs = "^0.8"
+open = "5.0"
+reqwest = "0.11"
+tokio = { version = "1.32", features = [
+    "macros",
+    "rt-multi-thread",
+    "net",
+    "fs",
+    "time",
+] }
 
 [dev-dependencies]
 demonstrate = { version = "0.4" }

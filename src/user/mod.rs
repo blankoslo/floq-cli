@@ -1,54 +1,23 @@
-use crate::cmd::Subcommand;
-
 use std::io::Write;
 
 use anyhow::Result;
-use async_trait::async_trait;
 use chrono::{Duration, Utc};
-use clap::{App, AppSettings, ArgMatches};
+use clap::{ArgMatches, Command};
 
 mod auth;
 mod config;
 mod http;
 
-const SUBCOMMAND_NAME: &str = "bruker";
+pub const SUBCOMMAND_NAME: &str = "bruker";
 
-pub fn subcommand_app<'help>() -> App<'help> {
-    App::new(SUBCOMMAND_NAME)
+pub fn subcommand_app() -> Command {
+    Command::new(SUBCOMMAND_NAME)
         .about("Brukerhåndtering")
-        .setting(AppSettings::ArgRequiredElseHelp)
-        .subcommand(App::new("logg-inn").about("Logg inn i Floq"))
+        .subcommand(Command::new("logg-inn").about("Logg inn i Floq"))
         .subcommand(
-            App::new("logg-ut").about("Logg ut av Floq (sletter din lokale brukerkonfigurasjon)"),
+            Command::new("logg-ut")
+                .about("Logg ut av Floq (sletter din lokale brukerkonfigurasjon)"),
         )
-}
-
-pub fn subcommand<T: Write + Send>() -> Box<dyn Subcommand<T>> {
-    Box::new(UserSubcommand {})
-}
-
-struct UserSubcommand;
-
-#[async_trait(?Send)]
-impl<T: Write + Send> Subcommand<T> for UserSubcommand {
-    fn matches(&self, matches: &ArgMatches) -> bool {
-        matches.subcommand_name() == Some(SUBCOMMAND_NAME)
-    }
-
-    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<()> {
-        match matches.subcommand() {
-            Some(("logg-inn", _)) => {
-                authorize_user(out).await?;
-                Ok(())
-            }
-            Some(("logg-ut", _)) => {
-                config::delete_config().await?;
-                writeln!(out, "Ha det bra!")?;
-                Ok(())
-            }
-            _ => unreachable!("Unknown commands should be handled by the library"),
-        }
-    }
 }
 
 pub struct User {
@@ -61,6 +30,21 @@ pub struct Employee {
     id: u16,
     email: String,
     name: String,
+}
+
+pub async fn execute<OUT: Write + Send>(matches: &ArgMatches, mut out: OUT) -> Result<()> {
+    match matches.subcommand() {
+        Some(("logg-inn", _)) => {
+            authorize_user(&mut out).await?;
+            Ok(())
+        }
+        Some(("logg-ut", _)) => {
+            config::delete_config().await?;
+            writeln!(&mut out, "Ha det bra!")?;
+            Ok(())
+        }
+        _ => unreachable!("Unknown commands should be handled by the library"),
+    }
 }
 
 pub async fn authorize_user<OUT: Write + Send>(out: &mut OUT) -> Result<User> {

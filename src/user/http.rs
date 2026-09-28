@@ -1,5 +1,5 @@
 use super::Employee;
-use crate::http_client::{floq_api_domain, HandleInvalidToken, HandleMalformedBody};
+use crate::http_client::{HandleInvalidToken, ParseBody, FLOQ_API_DOMAIN};
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -24,7 +24,7 @@ impl EmployeeResponse {
 }
 
 pub async fn get_logged_in_employee(access_token: &str) -> Result<Employee> {
-    let mut response = surf::post(format!("{}/rpc/who_am_i", floq_api_domain()))
+    let mut response = surf::post(format!("{}/rpc/who_am_i", FLOQ_API_DOMAIN))
         .header("Accept", "application/json")
         .header("Authorization", format!("Bearer {}", access_token))
         .send()

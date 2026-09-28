@@ -1,23 +1,19 @@
-use crate::cmd::Subcommand;
-use crate::http_client::floq_api_domain;
-use crate::http_client::{HandleInvalidToken, HandleMalformedBody, HttpClient};
+use crate::http_client::{HandleInvalidToken, HttpClient, ParseBody, FLOQ_API_DOMAIN};
 use crate::print::TableMaker;
 use crate::user;
 
 use std::io::Write;
 
-use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use clap::{App, Arg, ArgMatches};
+use clap::{Arg, ArgMatches, Command};
 use serde::{Deserialize, Serialize};
-use surf::Response;
 
 use anyhow::{Context, Result};
 
-const SUBCOMMAND_NAME: &str = "prosjekter";
+pub const SUBCOMMAND_NAME: &str = "prosjekter";
 
-pub fn subcommand_app<'help>() -> App<'help> {
-    App::new(SUBCOMMAND_NAME)
+pub fn subcommand_app() -> Command {
+    Command::new("project")
         .about("Vis prosjekter")
         .arg(
             Arg::new("mine")
@@ -25,53 +21,15 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .short('m')
                 .default_value("true")
                 .conflicts_with("alle")
-                .about("Vis prosjekter du har ført timer på de siste to ukene"),
+                .help("Vis prosjekter du har ført timer på de siste to ukene"),
         )
         .arg(
             Arg::new("alle")
                 .long("alle")
                 .short('a')
                 .conflicts_with("mine")
-                .about("Vis alle prosjekter"),
+                .help("Vis alle prosjekter"),
         )
-}
-
-pub fn subcommand<T: Write + Send>() -> Box<dyn Subcommand<T>> {
-    Box::new(ProjectsSubcommand {})
-}
-
-struct ProjectsSubcommand;
-
-#[async_trait(?Send)]
-impl<T: Write + Send> Subcommand<T> for ProjectsSubcommand {
-    fn matches(&self, matches: &ArgMatches) -> bool {
-        matches.subcommand_name() == Some(SUBCOMMAND_NAME)
-    }
-
-    async fn execute(&self, matches: &clap::ArgMatches, out: &mut T) -> Result<()> {
-        let user = user::load_user_from_config(out).await?;
-        let client = HttpClient::from_user(&user);
-
-        let all = matches.is_present("alle");
-        let mut projects = if all {
-            client.get_projects().await?
-        } else {
-            client
-                .get_current_timestamped_projects_for_employee()
-                .await?
-        };
-        projects.sort_by(|p1, p2| p1.id.cmp(&p2.id));
-
-        let mut table_maker = TableMaker::new();
-        table_maker.static_titles(vec!["ID", "KUNDE", "BESKRIVELSE"]);
-        table_maker
-            .with(Box::new(|p: &Project| p.id.clone()))
-            .with(Box::new(|p| p.customer.name.clone()))
-            .with(Box::new(|p| p.name.clone()));
-        table_maker.into_table(&projects).print(out)?;
-
-        Ok(())
-    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -88,23 +46,48 @@ pub struct Customer {
     pub name: String,
 }
 
+pub async fn execute<OUT: Write + Send>(args: &ArgMatches, mut out: OUT) -> Result<()> {
+    let user = user::load_user_from_config(&mut out).await?;
+    let client = HttpClient::from_user(&user);
+
+    let all = args.contains_id("alle");
+    let mut projects = if all {
+        client.get_projects().await?
+    } else {
+        client
+            .get_current_timestamped_projects_for_employee()
+            .await?
+    };
+    projects.sort_by(|p1, p2| p1.id.cmp(&p2.id));
+
+    let mut table_maker = TableMaker::new();
+    table_maker.static_titles(vec!["ID", "KUNDE", "BESKRIVELSE"]);
+    table_maker
+        .with(Box::new(|p: &Project| p.id.clone()))
+        .with(Box::new(|p| p.customer.name.clone()))
+        .with(Box::new(|p| p.name.clone()));
+    table_maker.into_table(&projects).print(&mut out)?;
+
+    Ok(())
+}
+
 impl HttpClient {
     pub async fn get_projects(&self) -> Result<Vec<Project>> {
         let url = format!(
             "{}/projects?select=id,name,active,customer{{id,name}}",
-            floq_api_domain()
+            FLOQ_API_DOMAIN
         );
-        let mut response: Response = surf::get(url)
+
+        self.client
+            .get(url)
             .header("Accept", "application/json")
             .header("Authorization", format!("Bearer {}", self.access_token))
             .send()
             .await
             .handle_floq_response()
-            .with_context(|| "Noe gikk galt under henting av alle prosjekter")?;
-
-        let projects: Vec<Project> = response.body_json().await.handle_malformed_body()?;
-
-        Ok(projects)
+            .with_context(|| "Noe gikk galt under henting av alle prosjekter")?
+            .parse_body()
+            .await
     }
 }
 
@@ -165,9 +148,11 @@ impl HttpClient {
 
         let url = format!(
             "{}/rpc/projects_info_for_employee_in_period",
-            floq_api_domain()
+            FLOQ_API_DOMAIN
         );
-        let mut response: Response = surf::post(url)
+        let projects: Vec<ProjectForEmployeeResponse> = self
+            .client
+            .post(url)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
             .header("Authorization", format!("Bearer {}", self.access_token))
@@ -175,12 +160,9 @@ impl HttpClient {
             .send()
             .await
             .handle_floq_response()
-            .with_context(|| "Noe gikk galt under henting av dine prosjekter")?;
-
-        let projects: Vec<ProjectForEmployeeResponse> = response.body_json()
-            .await
-            .handle_malformed_body()
-            .with_context(|| "Noe gikk kalt under lesing av responsen fra /rpc/projects_info_for_employee_in_period")?;
+            .with_context(|| "Noe gikk galt under henting av dine prosjekter")?
+            .parse_body()
+            .await?;
 
         Ok(projects.into_iter().map(|r| r.into_project()).collect())
     }

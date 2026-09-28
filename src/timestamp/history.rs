@@ -1,45 +1,44 @@
 use super::{TimestampDate, TimestampHours};
-use crate::{cmd::Subcommand, http_client::HttpClient, print, user};
+use crate::{http_client::HttpClient, print, user};
 
 use std::{collections::HashMap, io::Write};
 
 use anyhow::Result;
-use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
-use clap::{App, Arg, ArgMatches};
+use clap::{Arg, ArgMatches, Command};
 
-const SUBCOMMAND_NAME: &str = "timehistorikk";
+pub const SUBCOMMAND_NAME: &str = "timehistorikk";
 
-pub fn subcommand_app<'help>() -> App<'help> {
-    App::new(SUBCOMMAND_NAME)
+pub fn subcommand_app() -> Command {
+    Command::new(SUBCOMMAND_NAME)
     .about("Vis timeføring")
     .arg(
         Arg::new("dato")
             .long("dato")
             .short('d')
-            .takes_value(true)
+            .num_args(1)
             .display_order(1)
-            .about("Dagen du ønsker å vise timer for.\nF.eks. \"--dato 2021-03-01\""),
+            .help("Dagen du ønsker å vise timer for.\nF.eks. \"--dato 2021-03-01\""),
     )
     .arg(
         Arg::new("fra")
             .long("fra")
-            .takes_value(true)
+            .num_args(1)
             .requires("til")
             .conflicts_with("dato")
             .display_order(2)
-            .about(
+            .help(
                 "Første dagen å vise timer for, settes til mandag denne uken hvis utelatt.\nEr inklusiv. F.eks. \"--fra 2021-03-01\" ",
             ),
     )
     .arg(
         Arg::new("til")
             .long("til")
-            .takes_value(true)
+            .num_args(1)
             .requires("fra")
             .conflicts_with("dato")
             .display_order(3)
-            .about(
+            .help(
                 "Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt.\nEr inklusiv. F.eks. \"--til 2021-03-05\"",
             ),
     )
@@ -48,21 +47,21 @@ pub fn subcommand_app<'help>() -> App<'help> {
             .long("forrige-uke")
             .conflicts_with_all(&["dato", "fra", "til", "neste-uke"])
             .display_order(4)
-            .about("Vis timer ført i forrige uke.")
+            .help("Vis timer ført i forrige uke.")
     )
     .arg(
         Arg::new("neste-uke")
             .long("neste-uke")
             .conflicts_with_all(&["dato", "fra", "til", "forrige-uke"])
             .display_order(5)
-            .about("Vis timer ført for neste uke.")
+            .help("Vis timer ført for neste uke.")
     )
     .arg(
         Arg::new("snu-tabell")
             .long("snu-tabell")
             .conflicts_with("ikke-snu-tabell")
             .display_order(6)
-            .about(
+            .help(
 "Snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
 Dette blir gjort automatisk hvis det skal vises timer for mer enn én uke."
             )
@@ -72,31 +71,11 @@ Dette blir gjort automatisk hvis det skal vises timer for mer enn én uke."
             .long("ikke-snu-tabell")
             .conflicts_with("snu-tabell")
             .display_order(7)
-            .about(
+            .help(
 "Ikke snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
 Stopper det fra å bli gjort automatisk hvis det skal vises timer for mer enn én uke."
             )
     )
-}
-
-pub fn subcommand<T: Write + Send>() -> Box<dyn Subcommand<T>> {
-    Box::new(TimestampHistorySubcommand)
-}
-
-struct TimestampHistorySubcommand;
-
-#[async_trait(?Send)]
-impl<T: Write + Send> Subcommand<T> for TimestampHistorySubcommand {
-    fn matches(&self, matches: &ArgMatches) -> bool {
-        matches.subcommand_name() == Some(SUBCOMMAND_NAME)
-    }
-
-    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<()> {
-        let user = user::load_user_from_config(out).await?;
-        let client = HttpClient::from_user(&user);
-
-        execute(matches, out, client).await
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -143,12 +122,11 @@ impl ProjectTimestamps {
     }
 }
 
-async fn execute<T: Write + Send>(
-    matches: &ArgMatches,
-    out: &mut T,
-    client: HttpClient,
-) -> Result<()> {
-    if matches.is_present("dato") {
+pub async fn execute<OUT: Write + Send>(matches: &ArgMatches, mut out: OUT) -> Result<()> {
+    let user = user::load_user_from_config(&mut out).await?;
+    let client = HttpClient::from_user(&user);
+
+    if matches.get_one("dato").is_some() {
         let date = matches.value_of("dato").unwrap().parse()?;
 
         let mut timestamps = client.get_timestamps_for_date(date).await?;

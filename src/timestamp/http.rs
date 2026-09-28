@@ -1,6 +1,6 @@
 use super::history::{ProjectTimestamp, Timestamp};
 use crate::http_client::floq_api_domain;
-use crate::http_client::{HandleInvalidToken, HandleMalformedBody, HttpClient};
+use crate::http_client::{HandleInvalidToken, ParseBody, HttpClient};
 
 use anyhow::{anyhow, Context, Result};
 use chrono::{Duration, NaiveDate};
@@ -49,12 +49,12 @@ impl HttpClient {
     ) -> Result<Duration> {
         let url = format!(
             "{}/time_entry?select=minutes&employee=eq.{}&project=eq.{}&date=eq.{}",
-            floq_api_domain(),
+            FLOQ_API_DOMAIN,
             self.employee_id,
             project_id,
             date.format("%Y-%m-%d"),
         );
-        let mut response: Response = surf::get(url)
+        let mut response: Response = self.client.get(url)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
             .header("Authorization", format!("Bearer {}", self.access_token))
@@ -66,8 +66,7 @@ impl HttpClient {
         let minutes = response
             .body_json::<Vec<TimeEntry>>()
             .await
-            .handle_malformed_body()
-            .with_context(|| "Klarte ikke lese responsen fra /time_entry")?
+            .parse_body()?
             .iter()
             .map(|entry| entry.minutes)
             .sum();
@@ -102,7 +101,7 @@ impl HttpClient {
         .serialize(serde_json::value::Serializer)?
         .to_string();
 
-        let url = format!("{}/rpc/projects_for_employee_for_date", floq_api_domain());
+        let url = format!("{}/rpc/projects_for_employee_for_date", FLOQ_API_DOMAIN);
         let mut response: Response = surf::post(url)
             .body(body)
             .header("Content-Type", "application/json")
@@ -155,7 +154,7 @@ impl HttpClient {
         .serialize(serde_json::value::Serializer)?
         .to_string();
 
-        let response = surf::post(format!("{}/time_entry", floq_api_domain()))
+        let response = surf::post(format!("{}/time_entry", FLOQ_API_DOMAIN))
             .body(body)
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", self.access_token))

@@ -1,4 +1,4 @@
-use crate::http_client::{floq_domain, HandleInvalidToken, HandleMalformedBody};
+use crate::http_client::{HandleInvalidToken, ParseBody, FLOQ_DOMAIN};
 
 use std::io::Write;
 use std::time::Duration;
@@ -35,15 +35,19 @@ pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUse
     .map_err(|e| anyhow!("{}", e))?;
 
     let port = server.server_addr().port();
+    let url = format!(
+        "{}/login/oauth?to=http://localhost:{}",
+        FLOQ_DOMAIN,
+        port
+    );
+
+    if let Err(e) = open::that(&url) {
+        eprintln!("{}", e);
+    }
 
     writeln!(out)?;
-    writeln!(out, "Vennligst åpne denne lenken i nettleseren din:")?;
-    writeln!(
-        out,
-        "{}/login/oauth?to=http://localhost:{}",
-        floq_domain(),
-        port
-    )?;
+    writeln!(out, "Vennligst åpne denne lenken i nettleseren din hvis det ikke skjedde automatisk:")?;
+    writeln!(out, "{}", url)?;
     writeln!(out)?;
 
     loop {
@@ -134,7 +138,7 @@ impl RefreshAccessTokenResponse {
 pub async fn refresh_access_token(refresh_token: &str) -> Result<AuthorizedUser> {
     let request_body = RefreshAccessTokenRequest { refresh_token };
     let request_body = serde_json::to_string(&request_body)?;
-    let request = surf::post(format!("{}/login/oauth/refresh", floq_domain()))
+    let request = surf::post(format!("{}/login/oauth/refresh", FLOQ_DOMAIN))
         .header("Content-Type", "application/json")
         .body(request_body);
 
