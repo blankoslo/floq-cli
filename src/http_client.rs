@@ -51,7 +51,7 @@ impl HandleInvalidToken for surf::Result<surf::Response> {
                     _ => Ok(r),
                 }
             },
-            Err(e) => return Err(e.downcast().unwrap_or_else(|e2| anyhow!(e2))),
+            Err(e) => Err(e.downcast().unwrap_or_else(|e2| anyhow!(e2))),
         }
     }
 }

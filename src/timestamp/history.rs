@@ -201,7 +201,7 @@ async fn execute<T: Write + Send>(
             };
             let days_from_monday = base_date.weekday().num_days_from_monday() as i64;
 
-            base_date + Duration::days(6 - days_from_monday as i64)
+            base_date + Duration::days(6 - days_from_monday)
         };
 
         // only one of these two can be true, if none are then we let the number of days in period decide
@@ -210,7 +210,7 @@ async fn execute<T: Write + Send>(
         if turn_table || (!dont_turn_table && to - from > Duration::days(6)) {
             // auto transpose if more than one week
             let mut timestamps = client.get_timestamps_for_period(from, to).await?;
-            timestamps.sort_by(|t0, t1| t0.timestamp.date.cmp(&t1.timestamp.date));
+            timestamps.sort_by_key(|t| t.timestamp.date);
 
             let mut table_maker = print::TableMaker::new();
             table_maker.static_titles(vec!["DATO", "PROSJEKT", "TIMER"]);
@@ -293,5 +293,5 @@ pub async fn get_timestamps_for_period(
             res
         });
 
-    Ok(project_to_timestamps.into_iter().map(|(_k, v)| v).collect())
+    Ok(project_to_timestamps.into_values().collect())
 }

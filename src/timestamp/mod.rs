@@ -141,7 +141,7 @@ impl<'a> Display for TimestampDate<'a> {
         write!(
             f,
             "{} ({})",
-            self.0.format("%Y-%m-%d").to_string(),
+            self.0.format("%Y-%m-%d"),
             weekdays.get_weekday().short_name
         )
     }

@@ -70,7 +70,7 @@ impl HttpClient {
             .handle_malformed_body()
             .with_context(|| "Klarte ikke lese responsen fra /time_entry")?;
 
-        Ok(entries.first().map(|e| Duration::minutes(e.minutes)).unwrap_or_else(|| Duration::zero()))
+        Ok(entries.first().map(|e| Duration::minutes(e.minutes)).unwrap_or_else(Duration::zero))
     }
 
     pub async fn get_timestamps_for_period(
