@@ -141,6 +141,7 @@ pub async fn refresh_access_token(refresh_token: &str) -> Result<AuthorizedUser>
     let mut response = request.send()
         .await
         .handle_floq_response()
+        .await
         .with_context(|| "Noe gikk galt under oppdatering av innloggingsinformasjonen, vennligst logg inn på nytt")?;
 
     let tokens: RefreshAccessTokenResponse = response

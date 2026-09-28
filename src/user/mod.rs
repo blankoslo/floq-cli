@@ -53,7 +53,9 @@ impl<T: Write + Send> Subcommand<T> for UserSubcommand {
 
 pub struct User {
     pub employee_id: u16,
+    #[allow(unused)]
     pub email: String,
+    #[allow(unused)]
     pub name: String,
     pub access_token: String,
 }

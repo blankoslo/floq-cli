@@ -61,18 +61,16 @@ impl HttpClient {
             .send()
             .await
             .handle_floq_response()
+            .await
             .with_context(|| "Noe gikk galt under henting av dine timer for et prosjekt")?;
 
-        let minutes = response
+        let entries = response
             .body_json::<Vec<TimeEntry>>()
             .await
             .handle_malformed_body()
-            .with_context(|| "Klarte ikke lese responsen fra /time_entry")?
-            .iter()
-            .map(|entry| entry.minutes)
-            .sum();
+            .with_context(|| "Klarte ikke lese responsen fra /time_entry")?;
 
-        Ok(Duration::minutes(minutes))
+        Ok(entries.first().map(|e| Duration::minutes(e.minutes)).unwrap_or_else(|| Duration::zero()))
     }
 
     pub async fn get_timestamps_for_period(
@@ -111,6 +109,7 @@ impl HttpClient {
             .send()
             .await
             .handle_floq_response()
+            .await
             .with_context(|| "Noe gikk galt under henting av dine timer for en dag")?;
 
         let response: Vec<TimestampedProjectsResponse> = response
@@ -139,7 +138,7 @@ struct TimestampRequest<'a> {
 }
 
 impl HttpClient {
-    pub async fn add_timestamp(
+    pub async fn set_timestamp(
         &self,
         project_id: &str,
         date: &NaiveDate,
@@ -155,17 +154,20 @@ impl HttpClient {
         .serialize(serde_json::value::Serializer)?
         .to_string();
 
-        let response = surf::post(format!("{}/time_entry", floq_api_domain()))
+        let response = surf::post(format!("{}/time_entry?on_conflict=employee,project,date", floq_api_domain()))
             .body(body)
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("Prefer", "resolution=merge-duplicates")
             .send()
             .await
             .handle_floq_response()
+            .await
             .with_context(|| "Noe gikk galt under føring av timer")?;
 
         match response.status() {
-            StatusCode::Created => Ok(()),
+            // Upsert returns either 200 OK or 201 Created depending on whether a new row was inserted or an existing row was updated.
+            StatusCode::Ok | StatusCode::Created => Ok(()),
             sc => Err(anyhow!(
                 "Fikk en annen statuskode enn forventet fra POST /time_entry {}",
                 sc

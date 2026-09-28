@@ -5,7 +5,7 @@ use std::{fmt::Display, io::Write};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use clap::{App, AppSettings, Arg, ArgMatches};
+use clap::{App, AppSettings, Arg, ArgAction, ArgMatches};
 use futures::{stream::FuturesUnordered, StreamExt};
 
 pub mod history;
@@ -31,7 +31,8 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .visible_alias(weekday.short_name)
                 .conflicts_with("dato")
                 .conflicts_with_all(&conflicts)
-                .about("Ukedag det skal føres timer på, relativt til dagens dato")
+                .action(ArgAction::SetTrue)
+                .help("Ukedag det skal føres timer på, relativt til dagens dato")
                 .display_order(day.as_chrono_weekday().num_days_from_monday() as usize + 1)
         })
         .collect();
@@ -39,7 +40,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
     App::new(SUBCOMMAND_NAME)
         .about("Før timer på et prosjekt")
         .setting(AppSettings::SubcommandsNegateReqs)
-        .arg(Arg::new("prosjekt").about("Prosjektet du ønsker å føre timer på").required(true).index(1))
+        .arg(Arg::new("prosjekt").help("Prosjektet du ønsker å føre timer på").required(true).index(1))
         .arg(
             Arg::new("timer")
                 .long("timer")
@@ -47,14 +48,14 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .takes_value(true)
                 .default_value("7.5")
                 .hide_default_value(true)
-                .about("Antall timer du ønsker å føre, settes til \"7.5\" hvis utelatt")
+                .help("Antall timer du ønsker å føre, settes til \"7.5\" hvis utelatt")
         )
         .arg(
             Arg::new("dato")
                 .long("dato")
                 .short('d')
                 .takes_value(true)
-                .about("Dagen det skal føres timer på, settes til i dag hvis utelatt.\nF.eks. \"--dato 2021-03-01\""),
+                .help("Dagen det skal føres timer på, settes til i dag hvis utelatt.\nF.eks. \"--dato 2021-03-01\""),
         )
         .arg(
             Arg::new("fra")
@@ -62,7 +63,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .takes_value(true)
                 .requires("til")
                 .conflicts_with("dato")
-                .about(
+                .help(
                     "Brukes samme med --til for å føre timer i en periode, er inklusiv.\nF.eks. \"--fra 2021-03-01\" ",
                 ),
         )
@@ -72,7 +73,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .takes_value(true)
                 .requires("fra")
                 .conflicts_with("dato")
-                .about(
+                .help(
                     "Brukes samme med --fra for å føre timer i en periode, er inklusiv.\nF.eks. \"--til 2021-03-05\"",
                 ),
         )
@@ -81,7 +82,8 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .long("forrige-uke")
                 .conflicts_with_all(&["neste-uke", "dato", "fra", "til" ])
                 .display_order(8) // one more than --søndag
-                .about(
+                .action(ArgAction::SetTrue)
+                .help(
                     "Setter relativ dato til forrige uke. Brukes sammen med ukedagene til å velge en dag i forrige uke"
                 )
         )
@@ -90,7 +92,8 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .long("neste-uke")
                 .conflicts_with_all(&["forrige-uke", "dato", "fra", "til" ])
                 .display_order(9) // one more than --forrige-uke
-                .about(
+                .action(ArgAction::SetTrue)
+                .help(
                     "Setter relativ dato til neste uke. Brukes sammen med ukedagene til å velge en dag i neste uke"
                 )
         )
@@ -156,9 +159,9 @@ async fn execute<T: Write + Send>(
     out: &mut T,
     client: HttpClient,
 ) -> Result<()> {
-    let project_id = matches.value_of("prosjekt").unwrap();
+    let project_id = matches.get_one::<String>("prosjekt").unwrap();
 
-    let hours: f32 = matches.value_of("timer").unwrap().parse()?;
+    let hours: f32 = matches.get_one::<String>("timer").unwrap().parse()?;
     let time = Duration::minutes((hours * 60.0) as i64);
     if time > Duration::days(1) {
         return Err(anyhow!(
@@ -167,40 +170,40 @@ async fn execute<T: Write + Send>(
         ));
     }
 
-    let dates = if matches.is_present("fra") {
+    let dates = if matches.contains_id("fra") {
         let from: NaiveDate = matches
-            .value_of("fra")
+            .get_one::<String>("fra")
             .unwrap()
             .parse::<NaiveDate>()
             .with_context(|| "Fra dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")?;
         let to: NaiveDate = matches
-            .value_of("til")
+            .get_one::<String>("til")
             .unwrap()
             .parse::<NaiveDate>()
             .with_context(|| "Til dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")?;
 
         from.iter_days().take_while(|d| d <= &to).collect()
-    } else if matches.is_present("dato") {
+    } else if matches.contains_id("dato") {
         let date: NaiveDate = matches
-            .value_of("dato")
+            .get_one::<String>("dato")
             .map(|date| {
                 date.parse::<NaiveDate>()
                     .with_context(|| "Dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")
             })
-            .unwrap_or_else(|| Ok(Utc::now().date().naive_local()))?;
+            .unwrap_or_else(|| Ok(Utc::now().date_naive()))?;
 
         vec![date]
     } else {
         let weekdays = time::Weekdays::all();
         let weekday = weekdays
             .iter()
-            .find(|w| matches.is_present(w.get_weekday().full_name));
+            .find(|w| matches.get_flag(w.get_weekday().full_name));
 
         if let Some(weekday) = weekday {
-            let today = Utc::now().date();
-            let base_date = if matches.is_present("forrige-uke") {
+            let today = Utc::now().date_naive();
+            let base_date = if matches.get_flag("forrige-uke") {
                 today - Duration::weeks(1)
-            } else if matches.is_present("neste-uke") {
+            } else if matches.get_flag("neste-uke") {
                 today + Duration::weeks(1)
             } else {
                 today
@@ -211,10 +214,10 @@ async fn execute<T: Write + Send>(
                 weekday.as_chrono_weekday().num_days_from_monday() as i64 - days_from_monday as i64;
             let date = base_date + Duration::days(days_until_date);
 
-            vec![date.naive_local()]
+            vec![date]
         } else {
             // default to todays date
-            vec![Utc::now().date().naive_local()]
+            vec![Utc::now().date_naive()]
         }
     };
 
@@ -259,7 +262,7 @@ async fn set_timetsamp<'a>(
 
     if !time_diff.is_zero() {
         client
-            .add_timestamp(project_id, date, time_diff)
+            .set_timestamp(project_id, date, *time)
             .await
             .map(|_| ())?;
     }
