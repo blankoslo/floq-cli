@@ -1,14 +1,13 @@
 use super::{TimestampDate, TimestampHours};
-use crate::{cmd::Subcommand, http_client::HttpClient, print, user};
+use crate::{http_client::HttpClient, print, user};
 
 use std::{collections::HashMap, io::Write};
 
 use anyhow::Result;
-use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
 use clap::{Command, Arg, ArgAction, ArgMatches};
 
-const SUBCOMMAND_NAME: &str = "timehistorikk";
+pub const SUBCOMMAND_NAME: &str = "timehistorikk";
 
 pub fn subcommand_app() -> Command {
     Command::new(SUBCOMMAND_NAME)
@@ -83,26 +82,6 @@ Stopper det fra å bli gjort automatisk hvis det skal vises timer for mer enn é
     )
 }
 
-pub fn subcommand<T: Write + Send>() -> Box<dyn Subcommand<T>> {
-    Box::new(TimestampHistorySubcommand)
-}
-
-struct TimestampHistorySubcommand;
-
-#[async_trait(?Send)]
-impl<T: Write + Send> Subcommand<T> for TimestampHistorySubcommand {
-    fn matches(&self, matches: &ArgMatches) -> bool {
-        matches.subcommand_name() == Some(SUBCOMMAND_NAME)
-    }
-
-    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<()> {
-        let user = user::load_user_from_config(out).await?;
-        let client = HttpClient::from_user(&user);
-
-        execute(matches, out, client).await
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Timestamp {
     pub date: NaiveDate,
@@ -147,11 +126,12 @@ impl ProjectTimestamps {
     }
 }
 
-async fn execute<T: Write + Send>(
+pub async fn execute<T: Write + Send>(
     matches: &ArgMatches,
     out: &mut T,
-    client: HttpClient,
 ) -> Result<()> {
+    let user = user::load_user_from_config(out).await?;
+    let client = HttpClient::from_user(&user);
     if matches.contains_id("dato") {
         let date = matches.get_one::<String>("dato").unwrap().parse()?;
 
