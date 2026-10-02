@@ -36,14 +36,19 @@ pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUse
 
     let port = server.server_addr().port();
 
-    writeln!(out)?;
-    writeln!(out, "Vennligst åpne denne lenken i nettleseren din:")?;
-    writeln!(
-        out,
+    let url = format!(
         "{}/login/oauth?to=http://localhost:{}",
         floq_domain(),
         port
-    )?;
+    );
+
+    if let Err(err) = open::that(&url) {
+        eprintln!("{}", err);
+    }
+
+    writeln!(out)?;
+    writeln!(out, "Vennligst åpne denne lenken i nettleseren din hvis det ikke skjedde automatisk:")?;
+    writeln!(out, "{}", url)?;
     writeln!(out)?;
 
     loop {
