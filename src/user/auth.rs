@@ -20,13 +20,12 @@ pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUse
     let (tx, rx) = mpsc::sync_channel::<Result<AuthorizedUser>>(0);
 
     let server = rouille::Server::new("0.0.0.0:0", move |request| {
-        match handle_callback(request) {
+        match handle_callback(request).with_context(|| "Error on handle callback from Floq Auth") {
             Ok(tokens) => {
                 tx.send(Ok(tokens)).unwrap();
                 Response::text("Flott, da er du logget inn i floq cli!\n\n(Bare å lukke denne fanen)")
             },
             Err(e) => {
-                eprintln!("Error on handle callback from Floq Auth: {}", e);
                 tx.send(Err(e)).unwrap();
                 Response::text("An error occurred while trying to handle Auth callback, see command output for more details")
             }
@@ -42,9 +41,7 @@ pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUse
         port
     );
 
-    if let Err(err) = open::that(&url) {
-        eprintln!("{}", err);
-    }
+    open::that(&url)?;
 
     writeln!(out)?;
     writeln!(out, "Vennligst åpne denne lenken i nettleseren din hvis det ikke skjedde automatisk:")?;
@@ -99,13 +96,7 @@ fn handle_callback(request: &Request) -> Result<AuthorizedUser> {
             ))
         }
     };
-    let expires_at: DateTime<FixedOffset> = match expires_at.parse() {
-        Ok(ea) => ea,
-        Err(e) => {
-            eprintln!("Parse DateTime error: {:?}", e);
-            return Err(anyhow!("Param 'expiry_date' is in an invalid format"));
-        }
-    };
+    let expires_at: DateTime<FixedOffset> = expires_at.parse().with_context(|| "Param 'expiry_date' is in an invalid format")?;
     let expires_at = expires_at.naive_utc();
 
     Ok(AuthorizedUser {
