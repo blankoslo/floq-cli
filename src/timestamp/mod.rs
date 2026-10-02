@@ -5,7 +5,7 @@ use std::{fmt::Display, io::Write};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use clap::{App, AppSettings, Arg, ArgAction, ArgMatches};
+use clap::{Command, Arg, ArgAction, ArgMatches};
 use futures::{stream::FuturesUnordered, StreamExt};
 
 pub mod history;
@@ -13,7 +13,7 @@ mod http;
 
 const SUBCOMMAND_NAME: &str = "timeføring";
 
-pub fn subcommand_app<'help>() -> App<'help> {
+pub fn subcommand_app() -> Command {
     let days = time::Weekdays::all();
 
     let day_args: Vec<Arg> = days
@@ -37,15 +37,15 @@ pub fn subcommand_app<'help>() -> App<'help> {
         })
         .collect();
 
-    App::new(SUBCOMMAND_NAME)
+    Command::new(SUBCOMMAND_NAME)
         .about("Før timer på et prosjekt")
-        .setting(AppSettings::SubcommandsNegateReqs)
+        .subcommand_negates_reqs(true)
         .arg(Arg::new("prosjekt").help("Prosjektet du ønsker å føre timer på").required(true).index(1))
         .arg(
             Arg::new("timer")
                 .long("timer")
                 .short('t')
-                .takes_value(true)
+                .num_args(1)
                 .default_value("7.5")
                 .hide_default_value(true)
                 .help("Antall timer du ønsker å føre, settes til \"7.5\" hvis utelatt")
@@ -54,13 +54,13 @@ pub fn subcommand_app<'help>() -> App<'help> {
             Arg::new("dato")
                 .long("dato")
                 .short('d')
-                .takes_value(true)
+                .num_args(1)
                 .help("Dagen det skal føres timer på, settes til i dag hvis utelatt.\nF.eks. \"--dato 2021-03-01\""),
         )
         .arg(
             Arg::new("fra")
                 .long("fra")
-                .takes_value(true)
+                .num_args(1)
                 .requires("til")
                 .conflicts_with("dato")
                 .help(
@@ -70,7 +70,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
         .arg(
             Arg::new("til")
                 .long("til")
-                .takes_value(true)
+                .num_args(1)
                 .requires("fra")
                 .conflicts_with("dato")
                 .help(
@@ -80,7 +80,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
         .arg(
             Arg::new("forrige-uke")
                 .long("forrige-uke")
-                .conflicts_with_all(&["neste-uke", "dato", "fra", "til" ])
+                .conflicts_with_all(["neste-uke", "dato", "fra", "til" ])
                 .display_order(8) // one more than --søndag
                 .action(ArgAction::SetTrue)
                 .help(
@@ -90,7 +90,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
         .arg(
             Arg::new("neste-uke")
                 .long("neste-uke")
-                .conflicts_with_all(&["forrige-uke", "dato", "fra", "til" ])
+                .conflicts_with_all(["forrige-uke", "dato", "fra", "til" ])
                 .display_order(9) // one more than --forrige-uke
                 .action(ArgAction::SetTrue)
                 .help(

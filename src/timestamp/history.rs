@@ -6,25 +6,25 @@ use std::{collections::HashMap, io::Write};
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
-use clap::{App, Arg, ArgAction, ArgMatches};
+use clap::{Command, Arg, ArgAction, ArgMatches};
 
 const SUBCOMMAND_NAME: &str = "timehistorikk";
 
-pub fn subcommand_app<'help>() -> App<'help> {
-    App::new(SUBCOMMAND_NAME)
+pub fn subcommand_app() -> Command {
+    Command::new(SUBCOMMAND_NAME)
     .about("Vis timeføring")
     .arg(
         Arg::new("dato")
             .long("dato")
             .short('d')
-            .takes_value(true)
+            .num_args(1)
             .display_order(1)
             .help("Dagen du ønsker å vise timer for.\nF.eks. \"--dato 2021-03-01\""),
     )
     .arg(
         Arg::new("fra")
             .long("fra")
-            .takes_value(true)
+            .num_args(1)
             .requires("til")
             .conflicts_with("dato")
             .display_order(2)
@@ -35,7 +35,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
     .arg(
         Arg::new("til")
             .long("til")
-            .takes_value(true)
+            .num_args(1)
             .requires("fra")
             .conflicts_with("dato")
             .display_order(3)
@@ -46,7 +46,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
     .arg(
         Arg::new("forrige-uke")
             .long("forrige-uke")
-            .conflicts_with_all(&["dato", "fra", "til", "neste-uke"])
+            .conflicts_with_all(["dato", "fra", "til", "neste-uke"])
             .display_order(4)
             .action(ArgAction::SetTrue)
             .help("Vis timer ført i forrige uke.")
@@ -54,7 +54,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
     .arg(
         Arg::new("neste-uke")
             .long("neste-uke")
-            .conflicts_with_all(&["dato", "fra", "til", "forrige-uke"])
+            .conflicts_with_all(["dato", "fra", "til", "forrige-uke"])
             .display_order(5)
             .action(ArgAction::SetTrue)
             .help("Vis timer ført for neste uke.")

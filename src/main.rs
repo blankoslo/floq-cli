@@ -4,7 +4,7 @@ use std::io;
 
 use anyhow::Result;
 use async_std::task;
-use clap::{App, AppSettings};
+use clap::Command;
 
 mod cmd;
 mod http_client;
@@ -17,11 +17,11 @@ mod user;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() -> Result<()> {
-    let matches = App::new("floq")
+    let matches = Command::new("floq")
         .about("Floq i din lokale terminal")
         .version(VERSION)
         .author("Rust-gjengen")
-        .setting(AppSettings::ArgRequiredElseHelp)
+        .arg_required_else_help(true)
         .subcommand(user::subcommand_app().display_order(1))
         .subcommand(project::subcommand_app().display_order(2))
         .subcommand(timestamp::subcommand_app().display_order(3))

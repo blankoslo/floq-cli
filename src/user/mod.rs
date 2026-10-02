@@ -5,7 +5,7 @@ use std::io::Write;
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
-use clap::{App, AppSettings, ArgMatches};
+use clap::{Command, ArgMatches};
 
 mod auth;
 mod config;
@@ -13,13 +13,13 @@ mod http;
 
 const SUBCOMMAND_NAME: &str = "bruker";
 
-pub fn subcommand_app<'help>() -> App<'help> {
-    App::new(SUBCOMMAND_NAME)
+pub fn subcommand_app() -> Command {
+    Command::new(SUBCOMMAND_NAME)
         .about("Brukerhåndtering")
-        .setting(AppSettings::ArgRequiredElseHelp)
-        .subcommand(App::new("logg-inn").about("Logg inn i Floq"))
+        .arg_required_else_help(true)
+        .subcommand(Command::new("logg-inn").about("Logg inn i Floq"))
         .subcommand(
-            App::new("logg-ut").about("Logg ut av Floq (sletter din lokale brukerkonfigurasjon)"),
+            Command::new("logg-ut").about("Logg ut av Floq (sletter din lokale brukerkonfigurasjon)"),
         )
 }
 
