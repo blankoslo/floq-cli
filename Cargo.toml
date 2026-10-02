@@ -20,6 +20,7 @@ anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 clap = "4.6"
 prettytable-rs = "^0.10"
+open = "5.4"
 
 [dev-dependencies]
 demonstrate = { version = "0.4" }
