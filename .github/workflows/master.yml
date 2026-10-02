@@ -15,8 +15,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      FLOQ_DOMAIN: https://blank-test.floq.no
-      FLOQ_API_DOMAIN: https://api-blank-test.floq.no 
+      FLOQ_DOMAIN: https://test.floq.no
+      FLOQ_API_DOMAIN: https://api-test.floq.no
 
     steps:
     - uses: actions/checkout@v2

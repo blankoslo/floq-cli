@@ -1,8 +1,10 @@
 use prettytable::{format, Cell, Row, Table};
 
+type Extractor<T> = Box<dyn Fn(&T) -> String>;
+
 pub struct TableMaker<T> {
     titles: Vec<String>,
-    extractors: Vec<Box<dyn Fn(&T) -> String>>,
+    extractors: Vec<Extractor<T>>,
 }
 
 impl<T> TableMaker<T> {
@@ -21,7 +23,7 @@ impl<T> TableMaker<T> {
         self.titles = titles.into_iter().map(|s| s.to_string()).collect();
     }
 
-    pub fn with(&mut self, extractor: Box<dyn Fn(&T) -> String>) -> &mut Self {
+    pub fn with(&mut self, extractor: Extractor<T>) -> &mut Self {
         self.extractors.push(extractor);
         self
     }

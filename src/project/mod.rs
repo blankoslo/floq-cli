@@ -25,14 +25,16 @@ pub fn subcommand_app<'help>() -> App<'help> {
                 .short('m')
                 .default_value("true")
                 .conflicts_with("alle")
-                .about("Vis prosjekter du har ført timer på de siste to ukene"),
+                .action(clap::ArgAction::SetTrue)
+                .help("Vis prosjekter du har ført timer på de siste to ukene"),
         )
         .arg(
             Arg::new("alle")
                 .long("alle")
                 .short('a')
                 .conflicts_with("mine")
-                .about("Vis alle prosjekter"),
+                .action(clap::ArgAction::SetTrue)
+                .help("Vis alle prosjekter"),
         )
 }
 
@@ -52,7 +54,7 @@ impl<T: Write + Send> Subcommand<T> for ProjectsSubcommand {
         let user = user::load_user_from_config(out).await?;
         let client = HttpClient::from_user(&user);
 
-        let all = matches.is_present("alle");
+        let all = matches.get_flag("alle");
         let mut projects = if all {
             client.get_projects().await?
         } else {
@@ -78,12 +80,14 @@ impl<T: Write + Send> Subcommand<T> for ProjectsSubcommand {
 pub struct Project {
     pub id: String,
     pub name: String,
+    #[allow(unused)]
     active: bool,
     pub customer: Customer,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Customer {
+    #[allow(unused)]
     pub id: String,
     pub name: String,
 }
@@ -91,7 +95,7 @@ pub struct Customer {
 impl HttpClient {
     pub async fn get_projects(&self) -> Result<Vec<Project>> {
         let url = format!(
-            "{}/projects?select=id,name,active,customer{{id,name}}",
+            "{}/projects?select=id,name,active,customer(id,name)",
             floq_api_domain()
         );
         let mut response: Response = surf::get(url)
@@ -100,6 +104,7 @@ impl HttpClient {
             .send()
             .await
             .handle_floq_response()
+            .await
             .with_context(|| "Noe gikk galt under henting av alle prosjekter")?;
 
         let projects: Vec<Project> = response.body_json().await.handle_malformed_body()?;
@@ -139,9 +144,9 @@ impl ProjectForEmployeeResponse {
 
 impl HttpClient {
     pub async fn get_current_timestamped_projects_for_employee(&self) -> Result<Vec<Project>> {
-        let today = Utc::now().date();
+        let today = Utc::now().date_naive();
 
-        self.get_timestamped_projects_for_employee(today.naive_local())
+        self.get_timestamped_projects_for_employee(today)
             .await
     }
 
@@ -175,6 +180,7 @@ impl HttpClient {
             .send()
             .await
             .handle_floq_response()
+            .await
             .with_context(|| "Noe gikk galt under henting av dine prosjekter")?;
 
         let projects: Vec<ProjectForEmployeeResponse> = response.body_json()

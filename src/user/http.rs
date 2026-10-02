@@ -30,14 +30,14 @@ pub async fn get_logged_in_employee(access_token: &str) -> Result<Employee> {
         .send()
         .await
         .handle_floq_response()
+        .await
         .with_context(|| "Noe gikk galt under henting av informasjon om deg")?;
 
-    let response: [EmployeeResponse; 1] = response
+    let result: EmployeeResponse = response
         .body_json()
         .await
         .handle_malformed_body()
         .with_context(|| "Klarte ikke å lese responsen fra /rpc/who_am_i")?;
-    let [result] = response;
 
     Ok(result.into_employee())
 }

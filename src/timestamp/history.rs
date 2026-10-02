@@ -6,7 +6,7 @@ use std::{collections::HashMap, io::Write};
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
-use clap::{App, Arg, ArgMatches};
+use clap::{App, Arg, ArgAction, ArgMatches};
 
 const SUBCOMMAND_NAME: &str = "timehistorikk";
 
@@ -19,7 +19,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
             .short('d')
             .takes_value(true)
             .display_order(1)
-            .about("Dagen du ønsker å vise timer for.\nF.eks. \"--dato 2021-03-01\""),
+            .help("Dagen du ønsker å vise timer for.\nF.eks. \"--dato 2021-03-01\""),
     )
     .arg(
         Arg::new("fra")
@@ -28,7 +28,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
             .requires("til")
             .conflicts_with("dato")
             .display_order(2)
-            .about(
+            .help(
                 "Første dagen å vise timer for, settes til mandag denne uken hvis utelatt.\nEr inklusiv. F.eks. \"--fra 2021-03-01\" ",
             ),
     )
@@ -39,7 +39,7 @@ pub fn subcommand_app<'help>() -> App<'help> {
             .requires("fra")
             .conflicts_with("dato")
             .display_order(3)
-            .about(
+            .help(
                 "Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt.\nEr inklusiv. F.eks. \"--til 2021-03-05\"",
             ),
     )
@@ -48,21 +48,24 @@ pub fn subcommand_app<'help>() -> App<'help> {
             .long("forrige-uke")
             .conflicts_with_all(&["dato", "fra", "til", "neste-uke"])
             .display_order(4)
-            .about("Vis timer ført i forrige uke.")
+            .action(ArgAction::SetTrue)
+            .help("Vis timer ført i forrige uke.")
     )
     .arg(
         Arg::new("neste-uke")
             .long("neste-uke")
             .conflicts_with_all(&["dato", "fra", "til", "forrige-uke"])
             .display_order(5)
-            .about("Vis timer ført for neste uke.")
+            .action(ArgAction::SetTrue)
+            .help("Vis timer ført for neste uke.")
     )
     .arg(
         Arg::new("snu-tabell")
             .long("snu-tabell")
             .conflicts_with("ikke-snu-tabell")
             .display_order(6)
-            .about(
+            .action(ArgAction::SetTrue)
+            .help(
 "Snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
 Dette blir gjort automatisk hvis det skal vises timer for mer enn én uke."
             )
@@ -72,7 +75,8 @@ Dette blir gjort automatisk hvis det skal vises timer for mer enn én uke."
             .long("ikke-snu-tabell")
             .conflicts_with("snu-tabell")
             .display_order(7)
-            .about(
+            .action(ArgAction::SetTrue)
+            .help(
 "Ikke snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
 Stopper det fra å bli gjort automatisk hvis det skal vises timer for mer enn én uke."
             )
@@ -148,8 +152,8 @@ async fn execute<T: Write + Send>(
     out: &mut T,
     client: HttpClient,
 ) -> Result<()> {
-    if matches.is_present("dato") {
-        let date = matches.value_of("dato").unwrap().parse()?;
+    if matches.contains_id("dato") {
+        let date = matches.get_one::<String>("dato").unwrap().parse()?;
 
         let mut timestamps = client.get_timestamps_for_date(date).await?;
         timestamps.sort_by(|t0, t1| t0.project_id.cmp(&t1.project_id));
@@ -168,45 +172,45 @@ async fn execute<T: Write + Send>(
 
         table_maker.into_table(timestamps.as_slice()).print(out)?;
     } else {
-        let from = if let Some(from) = matches.value_of("fra") {
+        let from = if let Some(from) = matches.get_one::<String>("fra") {
             from.parse::<NaiveDate>()?
         } else {
-            let base_date = if matches.is_present("forrige-uke") {
-                Utc::now().date() - Duration::weeks(1)
-            } else if matches.is_present("neste_uke") {
-                Utc::now().date() + Duration::weeks(1)
+            let base_date = if matches.get_flag("forrige-uke") {
+                Utc::now().date_naive() - Duration::weeks(1)
+            } else if matches.get_flag("neste-uke") {
+                Utc::now().date_naive() + Duration::weeks(1)
             } else {
                 // default to monday this week
-                Utc::now().date()
+                Utc::now().date_naive()
             };
             let days_from_monday = base_date.weekday().num_days_from_monday() as i64;
 
-            base_date.naive_local() - Duration::days(days_from_monday)
+            base_date - Duration::days(days_from_monday)
         };
 
-        let to = if let Some(to) = matches.value_of("til") {
+        let to = if let Some(to) = matches.get_one::<String>("til") {
             to.parse::<NaiveDate>()?
         } else {
-            let base_date = if matches.is_present("forrige-uke") {
-                Utc::now().date() - Duration::weeks(1)
-            } else if matches.is_present("neste_uke") {
-                Utc::now().date() + Duration::weeks(1)
+            let base_date = if matches.get_flag("forrige-uke") {
+                Utc::now().date_naive() - Duration::weeks(1)
+            } else if matches.get_flag("neste-uke") {
+                Utc::now().date_naive() + Duration::weeks(1)
             } else {
                 // default to monday this week
-                Utc::now().date()
+                Utc::now().date_naive()
             };
             let days_from_monday = base_date.weekday().num_days_from_monday() as i64;
 
-            base_date.naive_local() + Duration::days(6 - days_from_monday as i64)
+            base_date + Duration::days(6 - days_from_monday)
         };
 
         // only one of these two can be true, if none are then we let the number of days in period decide
-        let turn_table = matches.is_present("snu-tabell");
-        let dont_turn_table = matches.is_present("ikke-snu-tabell");
+        let turn_table = matches.get_flag("snu-tabell");
+        let dont_turn_table = matches.get_flag("ikke-snu-tabell");
         if turn_table || (!dont_turn_table && to - from > Duration::days(6)) {
             // auto transpose if more than one week
             let mut timestamps = client.get_timestamps_for_period(from, to).await?;
-            timestamps.sort_by(|t0, t1| t0.timestamp.date.cmp(&t1.timestamp.date));
+            timestamps.sort_by_key(|t| t.timestamp.date);
 
             let mut table_maker = print::TableMaker::new();
             table_maker.static_titles(vec!["DATO", "PROSJEKT", "TIMER"]);
@@ -289,5 +293,5 @@ pub async fn get_timestamps_for_period(
             res
         });
 
-    Ok(project_to_timestamps.into_iter().map(|(_k, v)| v).collect())
+    Ok(project_to_timestamps.into_values().collect())
 }
