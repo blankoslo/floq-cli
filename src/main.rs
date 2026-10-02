@@ -1,12 +1,9 @@
-use cmd::Subcommand;
-
 use std::io;
 
 use anyhow::Result;
 use async_std::task;
 use clap::Command;
 
-mod cmd;
 mod http_client;
 mod print;
 mod project;
@@ -28,24 +25,21 @@ fn main() -> Result<()> {
         .subcommand(timestamp::history::subcommand_app().display_order(4))
         .get_matches();
 
-    let commands: [Box<dyn Subcommand<_>>; 4] = [
-        user::subcommand(),
-        project::subcommand(),
-        timestamp::subcommand(),
-        timestamp::history::subcommand(),
-    ];
-
-    match matches.subcommand() {
-        Some((_, sub_matches)) => {
-            let command = commands.into_iter().find(|sc| sc.matches(&matches));
-
-            match command {
-                Some(sc) => {
-                    task::block_on(async { sc.execute(sub_matches, &mut io::stdout()).await })
-                }
-                None => unreachable!("Unknown commands should be handled by the library"),
+    task::block_on(async {
+        match matches.subcommand() {
+            Some((project::SUBCOMMAND_NAME, sub_matches)) => {
+                project::execute(sub_matches, &mut io::stdout()).await
             }
+            Some((user::SUBCOMMAND_NAME, sub_matches)) => {
+                user::execute(sub_matches, &mut io::stdout()).await
+            }
+            Some((timestamp::SUBCOMMAND_NAME, sub_matches)) => {
+                timestamp::execute(sub_matches, &mut io::stdout()).await
+            }
+            Some((timestamp::history::SUBCOMMAND_NAME, sub_matches)) => {
+                timestamp::history::execute(sub_matches, &mut io::stdout()).await
+            }
+            _ => unreachable!("Unknown commands should be handled by the library"),
         }
-        None => unreachable!("Unknown commands should be handled by the library"),
-    }
+    })
 }

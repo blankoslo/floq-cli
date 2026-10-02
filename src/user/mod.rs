@@ -1,9 +1,6 @@
-use crate::cmd::Subcommand;
-
 use std::io::Write;
 
 use anyhow::Result;
-use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use clap::{Command, ArgMatches};
 
@@ -11,7 +8,7 @@ mod auth;
 mod config;
 mod http;
 
-const SUBCOMMAND_NAME: &str = "bruker";
+pub const SUBCOMMAND_NAME: &str = "bruker";
 
 pub fn subcommand_app() -> Command {
     Command::new(SUBCOMMAND_NAME)
@@ -23,31 +20,18 @@ pub fn subcommand_app() -> Command {
         )
 }
 
-pub fn subcommand<T: Write + Send>() -> Box<dyn Subcommand<T>> {
-    Box::new(UserSubcommand {})
-}
-
-struct UserSubcommand;
-
-#[async_trait(?Send)]
-impl<T: Write + Send> Subcommand<T> for UserSubcommand {
-    fn matches(&self, matches: &ArgMatches) -> bool {
-        matches.subcommand_name() == Some(SUBCOMMAND_NAME)
-    }
-
-    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<()> {
-        match matches.subcommand() {
-            Some(("logg-inn", _)) => {
-                authorize_user(out).await?;
-                Ok(())
-            }
-            Some(("logg-ut", _)) => {
-                config::delete_config().await?;
-                writeln!(out, "Ha det bra!")?;
-                Ok(())
-            }
-            _ => unreachable!("Unknown commands should be handled by the library"),
+pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Result<()> {
+    match matches.subcommand() {
+        Some(("logg-inn", _)) => {
+            authorize_user(out).await?;
+            Ok(())
         }
+        Some(("logg-ut", _)) => {
+            config::delete_config().await?;
+            writeln!(out, "Ha det bra!")?;
+            Ok(())
+        }
+        _ => unreachable!("Unknown commands should be handled by the library"),
     }
 }
 

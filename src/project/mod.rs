@@ -1,4 +1,3 @@
-use crate::cmd::Subcommand;
 use crate::http_client::floq_api_domain;
 use crate::http_client::{HandleInvalidToken, HandleMalformedBody, HttpClient};
 use crate::print::TableMaker;
@@ -6,7 +5,6 @@ use crate::user;
 
 use std::io::Write;
 
-use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use clap::{Command, Arg, ArgMatches};
 use serde::{Deserialize, Serialize};
@@ -14,7 +12,7 @@ use surf::Response;
 
 use anyhow::{Context, Result};
 
-const SUBCOMMAND_NAME: &str = "prosjekter";
+pub const SUBCOMMAND_NAME: &str = "prosjekter";
 
 pub fn subcommand_app() -> Command {
     Command::new(SUBCOMMAND_NAME)
@@ -38,42 +36,29 @@ pub fn subcommand_app() -> Command {
         )
 }
 
-pub fn subcommand<T: Write + Send>() -> Box<dyn Subcommand<T>> {
-    Box::new(ProjectsSubcommand {})
-}
+pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Result<()> {
+    let user = user::load_user_from_config(out).await?;
+    let client = HttpClient::from_user(&user);
 
-struct ProjectsSubcommand;
+    let all = matches.get_flag("alle");
+    let mut projects = if all {
+        client.get_projects().await?
+    } else {
+        client
+            .get_current_timestamped_projects_for_employee()
+            .await?
+    };
+    projects.sort_by(|p1, p2| p1.id.cmp(&p2.id));
 
-#[async_trait(?Send)]
-impl<T: Write + Send> Subcommand<T> for ProjectsSubcommand {
-    fn matches(&self, matches: &ArgMatches) -> bool {
-        matches.subcommand_name() == Some(SUBCOMMAND_NAME)
-    }
+    let mut table_maker = TableMaker::new();
+    table_maker.static_titles(vec!["ID", "KUNDE", "BESKRIVELSE"]);
+    table_maker
+        .with(Box::new(|p: &Project| p.id.clone()))
+        .with(Box::new(|p| p.customer.name.clone()))
+        .with(Box::new(|p| p.name.clone()));
+    table_maker.into_table(&projects).print(out)?;
 
-    async fn execute(&self, matches: &clap::ArgMatches, out: &mut T) -> Result<()> {
-        let user = user::load_user_from_config(out).await?;
-        let client = HttpClient::from_user(&user);
-
-        let all = matches.get_flag("alle");
-        let mut projects = if all {
-            client.get_projects().await?
-        } else {
-            client
-                .get_current_timestamped_projects_for_employee()
-                .await?
-        };
-        projects.sort_by(|p1, p2| p1.id.cmp(&p2.id));
-
-        let mut table_maker = TableMaker::new();
-        table_maker.static_titles(vec!["ID", "KUNDE", "BESKRIVELSE"]);
-        table_maker
-            .with(Box::new(|p: &Project| p.id.clone()))
-            .with(Box::new(|p| p.customer.name.clone()))
-            .with(Box::new(|p| p.name.clone()));
-        table_maker.into_table(&projects).print(out)?;
-
-        Ok(())
-    }
+    Ok(())
 }
 
 #[derive(Deserialize, Debug)]

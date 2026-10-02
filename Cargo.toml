@@ -9,7 +9,6 @@ edition = "2021"
 [dependencies]
 async-std = "1.6"
 futures = "0.3"
-async-trait = "0.1"
 surf = "2.1"
 rouille = "3.0"
 serde = { version = "1.0", features = ["derive"] }

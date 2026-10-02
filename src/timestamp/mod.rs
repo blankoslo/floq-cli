@@ -1,9 +1,8 @@
-use crate::{cmd::Subcommand, http_client::HttpClient, time, user};
+use crate::{http_client::HttpClient, time, user};
 
 use std::{fmt::Display, io::Write};
 
 use anyhow::{anyhow, Context, Result};
-use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use clap::{Command, Arg, ArgAction, ArgMatches};
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -11,7 +10,7 @@ use futures::{stream::FuturesUnordered, StreamExt};
 pub mod history;
 mod http;
 
-const SUBCOMMAND_NAME: &str = "timeføring";
+pub const SUBCOMMAND_NAME: &str = "timeføring";
 
 pub fn subcommand_app() -> Command {
     let days = time::Weekdays::all();
@@ -100,26 +99,6 @@ pub fn subcommand_app() -> Command {
         .args(day_args)
 }
 
-pub fn subcommand<T: Write + Send>() -> Box<dyn Subcommand<T>> {
-    Box::new(TimestampSubcommand)
-}
-
-struct TimestampSubcommand;
-
-#[async_trait(?Send)]
-impl<T: Write + Send> Subcommand<T> for TimestampSubcommand {
-    fn matches(&self, matches: &ArgMatches) -> bool {
-        matches.subcommand_name() == Some(SUBCOMMAND_NAME)
-    }
-
-    async fn execute(&self, matches: &ArgMatches, out: &mut T) -> Result<()> {
-        let user = user::load_user_from_config(out).await?;
-        let client = HttpClient::from_user(&user);
-
-        execute(matches, out, client).await
-    }
-}
-
 pub struct TimestampHours<'a>(&'a Duration);
 
 impl<'a> Display for TimestampHours<'a> {
@@ -154,11 +133,12 @@ struct SetTimestampResult<'a> {
     time_diff: Duration,
 }
 
-async fn execute<T: Write + Send>(
+pub async fn execute<T: Write + Send>(
     matches: &ArgMatches,
     out: &mut T,
-    client: HttpClient,
 ) -> Result<()> {
+    let user = user::load_user_from_config(out).await?;
+    let client = HttpClient::from_user(&user);
     let project_id = matches.get_one::<String>("prosjekt").unwrap();
 
     let hours: f32 = matches.get_one::<String>("timer").unwrap().parse()?;
