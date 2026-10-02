@@ -8,7 +8,7 @@ use std::io::Write;
 
 use async_trait::async_trait;
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use clap::{App, Arg, ArgMatches};
+use clap::{Command, Arg, ArgMatches};
 use serde::{Deserialize, Serialize};
 use surf::Response;
 
@@ -16,8 +16,8 @@ use anyhow::{Context, Result};
 
 const SUBCOMMAND_NAME: &str = "prosjekter";
 
-pub fn subcommand_app<'help>() -> App<'help> {
-    App::new(SUBCOMMAND_NAME)
+pub fn subcommand_app() -> Command {
+    Command::new(SUBCOMMAND_NAME)
         .about("Vis prosjekter")
         .arg(
             Arg::new("mine")
