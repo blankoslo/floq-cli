@@ -1,4 +1,4 @@
-use prettytable::{format, Cell, Row, Table};
+use prettytable::{Cell, Row, Table, format};
 
 type Extractor<T> = Box<dyn Fn(&T) -> String>;
 

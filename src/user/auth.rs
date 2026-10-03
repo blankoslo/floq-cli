@@ -1,10 +1,12 @@
-use crate::http_client::{floq_domain, HandleInvalidToken, HandleMalformedBody};
+use crate::http_client::{
+    HandleInvalidToken, HandleMalformedBody, UnauthorizedHttpClient, floq_domain,
+};
 
 use std::io::Write;
 use std::time::Duration;
 use std::{collections::HashMap, sync::mpsc};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::{DateTime, FixedOffset, NaiveDateTime};
 use rouille::{Request, Response};
 use serde::{Deserialize, Serialize};
@@ -16,11 +18,12 @@ pub struct AuthorizedUser {
     pub expires_at: NaiveDateTime,
 }
 
-pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUser> {
-    let (tx, rx) = mpsc::sync_channel::<Result<AuthorizedUser>>(0);
+impl UnauthorizedHttpClient {
+    pub async fn authorize<OUT: Write + Send>(&self, out: &mut OUT) -> Result<AuthorizedUser> {
+        let (tx, rx) = mpsc::sync_channel::<Result<AuthorizedUser>>(0);
 
-    let server = rouille::Server::new("0.0.0.0:0", move |request| {
-        match handle_callback(request).with_context(|| "Error on handle callback from Floq Auth") {
+        let server = rouille::Server::new("0.0.0.0:0", move |request| {
+        match handle_callback(request).context("Error on handle callback from Floq Auth") {
             Ok(tokens) => {
                 tx.send(Ok(tokens)).unwrap();
                 Response::text("Flott, da er du logget inn i floq cli!\n\n(Bare å lukke denne fanen)")
@@ -32,31 +35,50 @@ pub async fn authorize<OUT: Write + Send>(out: &mut OUT) -> Result<AuthorizedUse
         }
     })
     .map_err(|e| anyhow!("{}", e))?;
+        let port = server.server_addr().port();
+        let url = format!("{}/login/oauth?to=http://localhost:{}", floq_domain(), port);
 
-    let port = server.server_addr().port();
+        open::that(&url)?;
 
-    let url = format!(
-        "{}/login/oauth?to=http://localhost:{}",
-        floq_domain(),
-        port
-    );
+        writeln!(out)?;
+        writeln!(
+            out,
+            "Vennligst åpne denne lenken i nettleseren din hvis det ikke skjedde automatisk:"
+        )?;
+        writeln!(out, "{}", url)?;
+        writeln!(out)?;
 
-    open::that(&url)?;
-
-    writeln!(out)?;
-    writeln!(out, "Vennligst åpne denne lenken i nettleseren din hvis det ikke skjedde automatisk:")?;
-    writeln!(out, "{}", url)?;
-    writeln!(out)?;
-
-    loop {
-        match rx.try_iter().next() {
-            Some(Ok(tokens)) => break Ok(tokens),
-            Some(Err(e)) => break Err(e),
-            None => {
-                std::thread::sleep(Duration::from_millis(250));
-                server.poll();
+        loop {
+            match rx.try_iter().next() {
+                Some(Ok(tokens)) => break Ok(tokens),
+                Some(Err(e)) => break Err(e),
+                None => {
+                    std::thread::sleep(Duration::from_millis(250));
+                    server.poll();
+                }
             }
         }
+    }
+
+    pub async fn refresh_access_token(&self, refresh_token: &str) -> Result<AuthorizedUser> {
+        let request_body = RefreshAccessTokenRequest { refresh_token };
+        let request_body = serde_json::to_string(&request_body)?;
+
+        Ok(self
+            .client
+            .post(format!("{}/login/oauth/refresh", floq_domain()))
+            .header("Content-Type", "application/json")
+            .body(request_body)
+            .send()
+            .await
+            .handle_floq_response()
+            .await
+            .context("Noe gikk galt under oppdatering av innloggingsinformasjonen, vennligst logg inn på nytt")?
+            .json::<RefreshAccessTokenResponse>()
+            .await
+            .handle_malformed_body()
+            .context("Klarte ikke å lese responsen fra /login/oauth/refresh")?
+            .into_authorized_user(refresh_token))
     }
 }
 
@@ -75,7 +97,7 @@ fn handle_callback(request: &Request) -> Result<AuthorizedUser> {
         None => {
             return Err(anyhow!(
                 "Required param 'access_token' is missing from callback"
-            ))
+            ));
         }
     };
 
@@ -84,7 +106,7 @@ fn handle_callback(request: &Request) -> Result<AuthorizedUser> {
         None => {
             return Err(anyhow!(
                 "Required param 'refresh_token' is missing from callback"
-            ))
+            ));
         }
     };
 
@@ -93,10 +115,12 @@ fn handle_callback(request: &Request) -> Result<AuthorizedUser> {
         None => {
             return Err(anyhow!(
                 "Required param 'expiry_date' is missing from callback"
-            ))
+            ));
         }
     };
-    let expires_at: DateTime<FixedOffset> = expires_at.parse().with_context(|| "Param 'expiry_date' is in an invalid format")?;
+    let expires_at: DateTime<FixedOffset> = expires_at
+        .parse()
+        .context("Param 'expiry_date' is in an invalid format")?;
     let expires_at = expires_at.naive_utc();
 
     Ok(AuthorizedUser {
@@ -125,26 +149,4 @@ impl RefreshAccessTokenResponse {
             expires_at: self.expiry_date.naive_utc(),
         }
     }
-}
-
-pub async fn refresh_access_token(refresh_token: &str) -> Result<AuthorizedUser> {
-    let request_body = RefreshAccessTokenRequest { refresh_token };
-    let request_body = serde_json::to_string(&request_body)?;
-    let request = surf::post(format!("{}/login/oauth/refresh", floq_domain()))
-        .header("Content-Type", "application/json")
-        .body(request_body);
-
-    let mut response = request.send()
-        .await
-        .handle_floq_response()
-        .await
-        .with_context(|| "Noe gikk galt under oppdatering av innloggingsinformasjonen, vennligst logg inn på nytt")?;
-
-    let tokens: RefreshAccessTokenResponse = response
-        .body_json()
-        .await
-        .handle_malformed_body()
-        .with_context(|| "Klarte ikke å lese responsen fra /login/oauth/refresh")?;
-
-    Ok(tokens.into_authorized_user(refresh_token))
 }

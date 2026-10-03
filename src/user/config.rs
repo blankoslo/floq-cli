@@ -1,6 +1,6 @@
 use std::{env, io::ErrorKind};
 
-use async_std::fs;
+use tokio::fs;
 
 use anyhow::{Context, Result};
 use chrono::NaiveDateTime;
@@ -31,24 +31,26 @@ fn file_path() -> String {
 }
 
 pub async fn load_config() -> Result<Option<UserConfig>> {
-    let r = fs::read_to_string(file_path())
-        .await
-        .and_then(|s| toml::from_str::<UserConfig>(s.as_str()).map_err(|e| e.into()))
-        .map_err(|e| match e.kind() {
-            ErrorKind::NotFound => Ok(None),
-            _ => Err(e),
-        });
+    let content = match fs::read_to_string(file_path()).await {
+        Ok(s) => s,
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(e) => {
+            return Err(e).with_context(|| {
+                format!("Klarte ikke å lese konfigurasjonsfilen {}", file_path())
+            });
+        }
+    };
 
-    match r {
-        Ok(uc) => Ok(Some(uc)),
-        Err(e) => e.map_err(|e| e.into()),
-    }
+    let config = toml::from_str::<UserConfig>(&content)
+        .with_context(|| format!("Klarte ikke å tolke konfigurasjonsfilen {}", file_path()))?;
+
+    Ok(Some(config))
 }
 
 pub async fn update_config(config: &UserConfig) -> Result<()> {
-    let file_content = toml::to_vec(config).with_context(|| {
-        "Klarte ikke å bygge inneholdet i konfigigurasjonsfilen, vennligst logg inn på nytt"
-    })?;
+    let file_content = toml::to_string(config).context(
+        "Klarte ikke å bygge inneholdet i konfigigurasjonsfilen, vennligst logg inn på nytt",
+    )?;
 
     match fs::create_dir(folder_path()).await {
         Ok(_) => Ok(()),
