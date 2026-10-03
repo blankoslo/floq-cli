@@ -1,11 +1,14 @@
 use super::{TimestampDate, TimestampHours};
-use crate::{http_client::HttpClient, print, user};
+use crate::{
+    http_client::{AuthorizedHttpClient, UnauthorizedHttpClient},
+    print, user,
+};
 
 use std::{collections::HashMap, io::Write};
 
 use anyhow::Result;
 use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
-use clap::{Command, Arg, ArgAction, ArgMatches};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 
 pub const SUBCOMMAND_NAME: &str = "timehistorikk";
 
@@ -126,12 +129,10 @@ impl ProjectTimestamps {
     }
 }
 
-pub async fn execute<T: Write + Send>(
-    matches: &ArgMatches,
-    out: &mut T,
-) -> Result<()> {
+pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Result<()> {
     let user = user::load_user_from_config(out).await?;
-    let client = HttpClient::from_user(&user);
+    let client = UnauthorizedHttpClient::new().into_authorized_with_user(&user);
+
     if matches.contains_id("dato") {
         let date = matches.get_one::<String>("dato").unwrap().parse()?;
 
@@ -204,7 +205,9 @@ pub async fn execute<T: Write + Send>(
 
             table_maker.into_table(timestamps.as_slice()).print(out)?;
         } else {
-            let mut timestamps = get_timestamps_for_period(client, from, to).await?;
+            let mut timestamps = client
+                .get_sum_timestamps_by_project_for_period(from, to)
+                .await?;
             timestamps.sort_by(|t0, t1| t0.project_id.cmp(&t1.project_id));
             let timestamped_dates: HashMap<NaiveDate, ()> = timestamps
                 .iter()
@@ -250,28 +253,30 @@ pub async fn execute<T: Write + Send>(
     Ok(())
 }
 
-pub async fn get_timestamps_for_period(
-    client: HttpClient,
-    from: NaiveDate,
-    to: NaiveDate,
-) -> Result<Vec<ProjectTimestamps>> {
-    let project_timestamps = client.get_timestamps_for_period(from, to).await?;
+impl AuthorizedHttpClient {
+    pub async fn get_sum_timestamps_by_project_for_period(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<ProjectTimestamps>> {
+        let project_timestamps = self.get_timestamps_for_period(from, to).await?;
 
-    let project_to_timestamps: HashMap<String, ProjectTimestamps> = project_timestamps
-        .into_iter()
-        .fold(HashMap::new(), |mut res, next| {
-            let key = next.project_id.clone();
-            let value = match res.remove(&next.project_id) {
-                Some(mut pt) => {
-                    pt.timestamps.push(next.timestamp);
-                    pt
-                }
-                None => next.into_project_timestamps(),
-            };
+        let project_to_timestamps: HashMap<String, ProjectTimestamps> = project_timestamps
+            .into_iter()
+            .fold(HashMap::new(), |mut res, next| {
+                let key = next.project_id.clone();
+                let value = match res.remove(&next.project_id) {
+                    Some(mut pt) => {
+                        pt.timestamps.push(next.timestamp);
+                        pt
+                    }
+                    None => next.into_project_timestamps(),
+                };
 
-            res.insert(key, value);
-            res
-        });
+                res.insert(key, value);
+                res
+            });
 
-    Ok(project_to_timestamps.into_values().collect())
+        Ok(project_to_timestamps.into_values().collect())
+    }
 }

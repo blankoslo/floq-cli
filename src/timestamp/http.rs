@@ -1,12 +1,12 @@
 use super::history::{ProjectTimestamp, Timestamp};
-use crate::http_client::floq_api_domain;
-use crate::http_client::{HandleInvalidToken, HandleMalformedBody, HttpClient};
+use crate::http_client::{AuthorizedHttpClient, floq_api_domain};
+use crate::http_client::{HandleInvalidToken, HandleMalformedBody};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::{Duration, NaiveDate};
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use surf::{Response, StatusCode};
 
 #[derive(Deserialize, Debug)]
 struct TimeEntry {
@@ -41,7 +41,7 @@ impl TimestampedProjectsResponse {
     }
 }
 
-impl HttpClient {
+impl AuthorizedHttpClient {
     pub async fn get_timestamp_on_project_for_date(
         &self,
         project_id: &str,
@@ -54,23 +54,22 @@ impl HttpClient {
             project_id,
             date.format("%Y-%m-%d"),
         );
-        let mut response: Response = surf::get(url)
-            .header("Content-Type", "application/json")
-            .header("Accept", "application/json")
-            .header("Authorization", format!("Bearer {}", self.access_token))
+
+        Ok(self
+            .client
+            .get(url)
             .send()
             .await
             .handle_floq_response()
             .await
-            .with_context(|| "Noe gikk galt under henting av dine timer for et prosjekt")?;
-
-        let entries = response
-            .body_json::<Vec<TimeEntry>>()
+            .context("Noe gikk galt under henting av dine timer for et prosjekt")?
+            .json::<Vec<TimeEntry>>()
             .await
             .handle_malformed_body()
-            .with_context(|| "Klarte ikke lese responsen fra /time_entry")?;
-
-        Ok(entries.first().map(|e| Duration::minutes(e.minutes)).unwrap_or_else(Duration::zero))
+            .context("Klarte ikke lese responsen fra /time_entry")?
+            .first()
+            .map(|e| Duration::minutes(e.minutes))
+            .unwrap_or_else(Duration::zero))
     }
 
     pub async fn get_timestamps_for_period(
@@ -99,29 +98,22 @@ impl HttpClient {
         }
         .serialize(serde_json::value::Serializer)?
         .to_string();
-
         let url = format!("{}/rpc/projects_for_employee_for_date", floq_api_domain());
-        let mut response: Response = surf::post(url)
+
+        Ok(self
+            .client
+            .post(url)
             .body(body)
-            .header("Content-Type", "application/json")
-            .header("Accept", "application/json")
-            .header("Authorization", format!("Bearer {}", self.access_token))
             .send()
             .await
             .handle_floq_response()
             .await
-            .with_context(|| "Noe gikk galt under henting av dine timer for en dag")?;
-
-        let response: Vec<TimestampedProjectsResponse> = response
-            .body_json()
+            .context("Noe gikk galt under henting av dine timer for en dag")?
+            .json::<Vec<TimestampedProjectsResponse>>()
             .await
             .handle_malformed_body()
-            .with_context(|| {
-                "Klarte ikke å lese responsen fra /rpc/projects_for_employee_for_date"
-            })?;
-
-        Ok(response
-            .iter()
+            .context("Klarte ikke å lese responsen fra /rpc/projects_for_employee_for_date")?
+            .into_iter()
             .map(|r| r.to_project_timestamp(date))
             .filter(|tp| !tp.timestamp.is_time_zero())
             .collect())
@@ -137,8 +129,8 @@ struct TimestampRequest<'a> {
     minutes: i64,
 }
 
-impl HttpClient {
-    pub async fn set_timestamp(
+impl AuthorizedHttpClient {
+    pub async fn internal_set_timestamp(
         &self,
         project_id: &str,
         date: &NaiveDate,
@@ -154,20 +146,23 @@ impl HttpClient {
         .serialize(serde_json::value::Serializer)?
         .to_string();
 
-        let response = surf::post(format!("{}/time_entry?on_conflict=employee,project,date", floq_api_domain()))
+        let response = self
+            .client
+            .post(format!(
+                "{}/time_entry?on_conflict=employee,project,date",
+                floq_api_domain()
+            ))
             .body(body)
-            .header("Content-Type", "application/json")
-            .header("Authorization", format!("Bearer {}", self.access_token))
             .header("Prefer", "resolution=merge-duplicates")
             .send()
             .await
             .handle_floq_response()
             .await
-            .with_context(|| "Noe gikk galt under føring av timer")?;
+            .context("Noe gikk galt under føring av timer")?;
 
         match response.status() {
             // Upsert returns either 200 OK or 201 Created depending on whether a new row was inserted or an existing row was updated.
-            StatusCode::Ok | StatusCode::Created => Ok(()),
+            StatusCode::OK | StatusCode::CREATED => Ok(()),
             sc => Err(anyhow!(
                 "Fikk en annen statuskode enn forventet fra POST /time_entry {}",
                 sc

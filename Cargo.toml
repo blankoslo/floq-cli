@@ -2,25 +2,24 @@
 name = "floq"
 version = "0.6.0"
 authors = ["Trond Øydna <trond.oydna@blank.no>"]
-edition = "2021"
-
+edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-std = "1.6"
-futures = "0.3"
-surf = "2.1"
-rouille = "3.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_urlencoded = "0.7"
-jwt = "0.13"
-toml = "0.5"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 clap = "4.6"
-prettytable-rs = "^0.10"
+futures = "0.3"
+jwt = "0.16"
 open = "5.4"
+prettytable-rs = "^0.10"
+reqwest = { version = "0.13", features = ["json"] }
+rouille = "3.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_urlencoded = "0.7"
+tokio = { version = "1.53", features = ["fs", "macros"] }
+toml = "1.1"
 
 [dev-dependencies]
 demonstrate = { version = "0.4" }
