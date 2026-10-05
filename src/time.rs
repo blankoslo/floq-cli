@@ -19,10 +19,7 @@ pub enum Weekdays {
 
 impl Weekday {
     fn new(full_name: &'static str, short_name: &'static str) -> Self {
-        Weekday {
-            full_name,
-            short_name,
-        }
+        Weekday { full_name, short_name }
     }
 }
 

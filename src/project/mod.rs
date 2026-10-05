@@ -1,14 +1,13 @@
-use crate::http_client::floq_api_domain;
-use crate::http_client::{HandleInvalidToken, HandleMalformedBody, HttpClient};
+use crate::http_client::{AuthorizedHttpClient, UnauthorizedHttpClient, floq_api_domain};
+use crate::http_client::{HandleInvalidToken, HandleMalformedBody};
 use crate::print::TableMaker;
 use crate::user;
 
 use std::io::Write;
 
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use clap::{Command, Arg, ArgMatches};
+use clap::{Arg, ArgMatches, Command};
 use serde::{Deserialize, Serialize};
-use surf::Response;
 
 use anyhow::{Context, Result};
 
@@ -38,15 +37,13 @@ pub fn subcommand_app() -> Command {
 
 pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Result<()> {
     let user = user::load_user_from_config(out).await?;
-    let client = HttpClient::from_user(&user);
+    let client = UnauthorizedHttpClient::new().into_authorized_with_user(&user);
 
     let all = matches.get_flag("alle");
     let mut projects = if all {
         client.get_projects().await?
     } else {
-        client
-            .get_current_timestamped_projects_for_employee()
-            .await?
+        client.get_current_timestamped_projects_for_employee().await?
     };
     projects.sort_by(|p1, p2| p1.id.cmp(&p2.id));
 
@@ -77,24 +74,20 @@ pub struct Customer {
     pub name: String,
 }
 
-impl HttpClient {
+impl AuthorizedHttpClient {
     pub async fn get_projects(&self) -> Result<Vec<Project>> {
-        let url = format!(
-            "{}/projects?select=id,name,active,customer(id,name)",
-            floq_api_domain()
-        );
-        let mut response: Response = surf::get(url)
-            .header("Accept", "application/json")
-            .header("Authorization", format!("Bearer {}", self.access_token))
+        let url = format!("{}/projects?select=id,name,active,customer(id,name)", floq_api_domain());
+
+        self.client
+            .get(url)
             .send()
             .await
             .handle_floq_response()
             .await
-            .with_context(|| "Noe gikk galt under henting av alle prosjekter")?;
-
-        let projects: Vec<Project> = response.body_json().await.handle_malformed_body()?;
-
-        Ok(projects)
+            .context("Noe gikk galt under henting av alle prosjekter")?
+            .json()
+            .await
+            .handle_malformed_body()
     }
 }
 
@@ -127,52 +120,41 @@ impl ProjectForEmployeeResponse {
     }
 }
 
-impl HttpClient {
+impl AuthorizedHttpClient {
     pub async fn get_current_timestamped_projects_for_employee(&self) -> Result<Vec<Project>> {
         let today = Utc::now().date_naive();
 
-        self.get_timestamped_projects_for_employee(today)
-            .await
+        self.get_timestamped_projects_for_employee(today).await
     }
 
-    pub async fn get_timestamped_projects_for_employee(
-        &self,
-        date: NaiveDate,
-    ) -> Result<Vec<Project>> {
+    pub async fn get_timestamped_projects_for_employee(&self, date: NaiveDate) -> Result<Vec<Project>> {
         let lower = date - Duration::weeks(2);
         let upper = date + Duration::days(1) * (6 - date.weekday().num_days_from_monday() as i32); // sunday of the same week as date
 
         let body = ProjectsForEmployeeRequest {
             employee_id: self.employee_id,
-            date_range: format!(
-                "({}, {})",
-                lower.format("%Y-%m-%d"),
-                upper.format("%Y-%m-%d")
-            ),
+            date_range: format!("({}, {})", lower.format("%Y-%m-%d"), upper.format("%Y-%m-%d")),
         }
         .serialize(serde_json::value::Serializer)?
         .to_string();
 
-        let url = format!(
-            "{}/rpc/projects_info_for_employee_in_period",
-            floq_api_domain()
-        );
-        let mut response: Response = surf::post(url)
-            .header("Content-Type", "application/json")
-            .header("Accept", "application/json")
-            .header("Authorization", format!("Bearer {}", self.access_token))
+        let url = format!("{}/rpc/projects_info_for_employee_in_period", floq_api_domain());
+
+        Ok(self
+            .client
+            .post(url)
             .body(body)
             .send()
             .await
             .handle_floq_response()
             .await
-            .with_context(|| "Noe gikk galt under henting av dine prosjekter")?;
-
-        let projects: Vec<ProjectForEmployeeResponse> = response.body_json()
+            .context("Noe gikk galt under henting av dine prosjekter")?
+            .json::<Vec<ProjectForEmployeeResponse>>()
             .await
             .handle_malformed_body()
-            .with_context(|| "Noe gikk kalt under lesing av responsen fra /rpc/projects_info_for_employee_in_period")?;
-
-        Ok(projects.into_iter().map(|r| r.into_project()).collect())
+            .context("Noe gikk kalt under lesing av responsen fra /rpc/projects_info_for_employee_in_period")?
+            .into_iter()
+            .map(|r| r.into_project())
+            .collect())
     }
 }

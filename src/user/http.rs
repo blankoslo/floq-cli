@@ -1,5 +1,5 @@
 use super::Employee;
-use crate::http_client::{floq_api_domain, HandleInvalidToken, HandleMalformedBody};
+use crate::http_client::{HandleInvalidToken, HandleMalformedBody, UnauthorizedHttpClient, floq_api_domain};
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -23,21 +23,21 @@ impl EmployeeResponse {
     }
 }
 
-pub async fn get_logged_in_employee(access_token: &str) -> Result<Employee> {
-    let mut response = surf::post(format!("{}/rpc/who_am_i", floq_api_domain()))
-        .header("Accept", "application/json")
-        .header("Authorization", format!("Bearer {}", access_token))
-        .send()
-        .await
-        .handle_floq_response()
-        .await
-        .with_context(|| "Noe gikk galt under henting av informasjon om deg")?;
-
-    let result: EmployeeResponse = response
-        .body_json()
-        .await
-        .handle_malformed_body()
-        .with_context(|| "Klarte ikke å lese responsen fra /rpc/who_am_i")?;
-
-    Ok(result.into_employee())
+impl UnauthorizedHttpClient {
+    pub async fn get_logged_in_employee(&self, access_token: &str) -> Result<Employee> {
+        Ok(self
+            .client
+            .post(format!("{}/rpc/who_am_i", floq_api_domain()))
+            .header("Authorization", format!("Bearer {}", access_token))
+            .send()
+            .await
+            .handle_floq_response()
+            .await
+            .context("Noe gikk galt under henting av informasjon om deg")?
+            .json::<EmployeeResponse>()
+            .await
+            .handle_malformed_body()
+            .context("Klarte ikke å lese responsen fra /rpc/who_am_i")?
+            .into_employee())
+    }
 }

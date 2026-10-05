@@ -1,11 +1,14 @@
-use crate::{http_client::HttpClient, time, user};
+use crate::{
+    http_client::{AuthorizedHttpClient, UnauthorizedHttpClient},
+    time, user,
+};
 
 use std::{fmt::Display, io::Write};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use clap::{Command, Arg, ArgAction, ArgMatches};
-use futures::{stream::FuturesUnordered, StreamExt};
+use clap::{Arg, ArgAction, ArgMatches, Command};
+use futures::{StreamExt, stream::FuturesUnordered};
 
 pub mod history;
 mod http;
@@ -39,7 +42,12 @@ pub fn subcommand_app() -> Command {
     Command::new(SUBCOMMAND_NAME)
         .about("Før timer på et prosjekt")
         .subcommand_negates_reqs(true)
-        .arg(Arg::new("prosjekt").help("Prosjektet du ønsker å føre timer på").required(true).index(1))
+        .arg(
+            Arg::new("prosjekt")
+                .help("Prosjektet du ønsker å føre timer på")
+                .required(true)
+                .index(1),
+        )
         .arg(
             Arg::new("timer")
                 .long("timer")
@@ -47,15 +55,12 @@ pub fn subcommand_app() -> Command {
                 .num_args(1)
                 .default_value("7.5")
                 .hide_default_value(true)
-                .help("Antall timer du ønsker å føre, settes til \"7.5\" hvis utelatt")
+                .help("Antall timer du ønsker å føre, settes til \"7.5\" hvis utelatt"),
         )
-        .arg(
-            Arg::new("dato")
-                .long("dato")
-                .short('d')
-                .num_args(1)
-                .help("Dagen det skal føres timer på, settes til i dag hvis utelatt.\nF.eks. \"--dato 2021-03-01\""),
-        )
+        .arg(Arg::new("dato").long("dato").short('d').num_args(1).help(
+            "Dagen det skal føres timer på, settes til i dag hvis utelatt.\n\
+                    F.eks. \"--dato 2021-03-01\"",
+        ))
         .arg(
             Arg::new("fra")
                 .long("fra")
@@ -63,7 +68,8 @@ pub fn subcommand_app() -> Command {
                 .requires("til")
                 .conflicts_with("dato")
                 .help(
-                    "Brukes samme med --til for å føre timer i en periode, er inklusiv.\nF.eks. \"--fra 2021-03-01\" ",
+                    "Brukes samme med --til for å føre timer i en periode, er inklusiv.\n\
+                    F.eks. \"--fra 2021-03-01\" ",
                 ),
         )
         .arg(
@@ -73,28 +79,31 @@ pub fn subcommand_app() -> Command {
                 .requires("fra")
                 .conflicts_with("dato")
                 .help(
-                    "Brukes samme med --fra for å føre timer i en periode, er inklusiv.\nF.eks. \"--til 2021-03-05\"",
+                    "Brukes samme med --fra for å føre timer i en periode, er inklusiv.\n\
+                    F.eks. \"--til 2021-03-05\"",
                 ),
         )
         .arg(
             Arg::new("forrige-uke")
                 .long("forrige-uke")
-                .conflicts_with_all(["neste-uke", "dato", "fra", "til" ])
+                .conflicts_with_all(["neste-uke", "dato", "fra", "til"])
                 .display_order(8) // one more than --søndag
                 .action(ArgAction::SetTrue)
                 .help(
-                    "Setter relativ dato til forrige uke. Brukes sammen med ukedagene til å velge en dag i forrige uke"
-                )
+                    "Setter relativ dato til forrige uke. \
+                    Brukes sammen med ukedagene til å velge en dag i forrige uke",
+                ),
         )
         .arg(
             Arg::new("neste-uke")
                 .long("neste-uke")
-                .conflicts_with_all(["forrige-uke", "dato", "fra", "til" ])
+                .conflicts_with_all(["forrige-uke", "dato", "fra", "til"])
                 .display_order(9) // one more than --forrige-uke
                 .action(ArgAction::SetTrue)
                 .help(
-                    "Setter relativ dato til neste uke. Brukes sammen med ukedagene til å velge en dag i neste uke"
-                )
+                    "Setter relativ dato til neste uke. \
+                    Brukes sammen med ukedagene til å velge en dag i neste uke",
+                ),
         )
         .args(day_args)
 }
@@ -133,21 +142,15 @@ struct SetTimestampResult<'a> {
     time_diff: Duration,
 }
 
-pub async fn execute<T: Write + Send>(
-    matches: &ArgMatches,
-    out: &mut T,
-) -> Result<()> {
+pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Result<()> {
     let user = user::load_user_from_config(out).await?;
-    let client = HttpClient::from_user(&user);
+    let client = UnauthorizedHttpClient::new().into_authorized_with_user(&user);
     let project_id = matches.get_one::<String>("prosjekt").unwrap();
 
     let hours: f32 = matches.get_one::<String>("timer").unwrap().parse()?;
     let time = Duration::minutes((hours * 60.0) as i64);
     if time > Duration::days(1) {
-        return Err(anyhow!(
-            "Det er ikke mulig å føre {} timer på én dag",
-            hours
-        ));
+        return Err(anyhow!("Det er ikke mulig å føre {} timer på én dag", hours));
     }
 
     let dates = if matches.contains_id("fra") {
@@ -155,12 +158,12 @@ pub async fn execute<T: Write + Send>(
             .get_one::<String>("fra")
             .unwrap()
             .parse::<NaiveDate>()
-            .with_context(|| "Fra dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")?;
+            .context("Fra dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")?;
         let to: NaiveDate = matches
             .get_one::<String>("til")
             .unwrap()
             .parse::<NaiveDate>()
-            .with_context(|| "Til dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")?;
+            .context("Til dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")?;
 
         from.iter_days().take_while(|d| d <= &to).collect()
     } else if matches.contains_id("dato") {
@@ -168,16 +171,14 @@ pub async fn execute<T: Write + Send>(
             .get_one::<String>("dato")
             .map(|date| {
                 date.parse::<NaiveDate>()
-                    .with_context(|| "Dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")
+                    .context("Dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")
             })
             .unwrap_or_else(|| Ok(Utc::now().date_naive()))?;
 
         vec![date]
     } else {
         let weekdays = time::Weekdays::all();
-        let weekday = weekdays
-            .iter()
-            .find(|w| matches.get_flag(w.get_weekday().full_name));
+        let weekday = weekdays.iter().find(|w| matches.get_flag(w.get_weekday().full_name));
 
         if let Some(weekday) = weekday {
             let today = Utc::now().date_naive();
@@ -190,8 +191,7 @@ pub async fn execute<T: Write + Send>(
             };
 
             let days_from_monday = base_date.weekday().num_days_from_monday();
-            let days_until_date =
-                weekday.as_chrono_weekday().num_days_from_monday() as i64 - days_from_monday as i64;
+            let days_until_date = weekday.as_chrono_weekday().num_days_from_monday() as i64 - days_from_monday as i64;
             let date = base_date + Duration::days(days_until_date);
 
             vec![date]
@@ -203,7 +203,7 @@ pub async fn execute<T: Write + Send>(
 
     let mut futures: FuturesUnordered<_> = dates
         .iter()
-        .map(|date| set_timetsamp(project_id, &time, date, &client))
+        .map(|date| client.set_timetsamp(project_id, &time, date))
         .collect();
     while let Some(r) = futures.next().await {
         let set_timestamp_result = r?;
@@ -229,28 +229,25 @@ pub async fn execute<T: Write + Send>(
     Ok(())
 }
 
-async fn set_timetsamp<'a>(
-    project_id: &'a str,
-    time: &'a Duration,
-    date: &'a NaiveDate,
-    client: &HttpClient,
-) -> Result<SetTimestampResult<'a>> {
-    let current_time = client
-        .get_timestamp_on_project_for_date(project_id, date)
-        .await?;
-    let time_diff = *time - current_time;
+impl AuthorizedHttpClient {
+    async fn set_timetsamp<'a>(
+        &self,
+        project_id: &'a str,
+        time: &'a Duration,
+        date: &'a NaiveDate,
+    ) -> Result<SetTimestampResult<'a>> {
+        let current_time = self.get_timestamp_on_project_for_date(project_id, date).await?;
+        let time_diff = *time - current_time;
 
-    if !time_diff.is_zero() {
-        client
-            .set_timestamp(project_id, date, *time)
-            .await
-            .map(|_| ())?;
+        if !time_diff.is_zero() {
+            self.internal_set_timestamp(project_id, date, *time).await.map(|_| ())?;
+        }
+
+        Ok(SetTimestampResult {
+            project_id,
+            time,
+            date,
+            time_diff,
+        })
     }
-
-    Ok(SetTimestampResult {
-        project_id,
-        time,
-        date,
-        time_diff,
-    })
 }

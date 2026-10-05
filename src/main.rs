@@ -1,7 +1,6 @@
 use std::io;
 
 use anyhow::Result;
-use async_std::task;
 use clap::Command;
 
 mod http_client;
@@ -13,7 +12,8 @@ mod user;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-fn main() -> Result<()> {
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<()> {
     let matches = Command::new("floq")
         .about("Floq i din lokale terminal")
         .version(VERSION)
@@ -25,21 +25,13 @@ fn main() -> Result<()> {
         .subcommand(timestamp::history::subcommand_app().display_order(4))
         .get_matches();
 
-    task::block_on(async {
-        match matches.subcommand() {
-            Some((project::SUBCOMMAND_NAME, sub_matches)) => {
-                project::execute(sub_matches, &mut io::stdout()).await
-            }
-            Some((user::SUBCOMMAND_NAME, sub_matches)) => {
-                user::execute(sub_matches, &mut io::stdout()).await
-            }
-            Some((timestamp::SUBCOMMAND_NAME, sub_matches)) => {
-                timestamp::execute(sub_matches, &mut io::stdout()).await
-            }
-            Some((timestamp::history::SUBCOMMAND_NAME, sub_matches)) => {
-                timestamp::history::execute(sub_matches, &mut io::stdout()).await
-            }
-            _ => unreachable!("Unknown commands should be handled by the library"),
+    match matches.subcommand() {
+        Some((project::SUBCOMMAND_NAME, sub_matches)) => project::execute(sub_matches, &mut io::stdout()).await,
+        Some((user::SUBCOMMAND_NAME, sub_matches)) => user::execute(sub_matches, &mut io::stdout()).await,
+        Some((timestamp::SUBCOMMAND_NAME, sub_matches)) => timestamp::execute(sub_matches, &mut io::stdout()).await,
+        Some((timestamp::history::SUBCOMMAND_NAME, sub_matches)) => {
+            timestamp::history::execute(sub_matches, &mut io::stdout()).await
         }
-    })
+        _ => unreachable!("Unknown commands should be handled by the library"),
+    }
 }
