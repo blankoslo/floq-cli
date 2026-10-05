@@ -42,7 +42,12 @@ pub fn subcommand_app() -> Command {
     Command::new(SUBCOMMAND_NAME)
         .about("Før timer på et prosjekt")
         .subcommand_negates_reqs(true)
-        .arg(Arg::new("prosjekt").help("Prosjektet du ønsker å føre timer på").required(true).index(1))
+        .arg(
+            Arg::new("prosjekt")
+                .help("Prosjektet du ønsker å føre timer på")
+                .required(true)
+                .index(1),
+        )
         .arg(
             Arg::new("timer")
                 .long("timer")
@@ -50,15 +55,12 @@ pub fn subcommand_app() -> Command {
                 .num_args(1)
                 .default_value("7.5")
                 .hide_default_value(true)
-                .help("Antall timer du ønsker å føre, settes til \"7.5\" hvis utelatt")
+                .help("Antall timer du ønsker å føre, settes til \"7.5\" hvis utelatt"),
         )
-        .arg(
-            Arg::new("dato")
-                .long("dato")
-                .short('d')
-                .num_args(1)
-                .help("Dagen det skal føres timer på, settes til i dag hvis utelatt.\nF.eks. \"--dato 2021-03-01\""),
-        )
+        .arg(Arg::new("dato").long("dato").short('d').num_args(1).help(
+            "Dagen det skal føres timer på, settes til i dag hvis utelatt.\n\
+                    F.eks. \"--dato 2021-03-01\"",
+        ))
         .arg(
             Arg::new("fra")
                 .long("fra")
@@ -66,7 +68,8 @@ pub fn subcommand_app() -> Command {
                 .requires("til")
                 .conflicts_with("dato")
                 .help(
-                    "Brukes samme med --til for å føre timer i en periode, er inklusiv.\nF.eks. \"--fra 2021-03-01\" ",
+                    "Brukes samme med --til for å føre timer i en periode, er inklusiv.\n\
+                    F.eks. \"--fra 2021-03-01\" ",
                 ),
         )
         .arg(
@@ -76,28 +79,31 @@ pub fn subcommand_app() -> Command {
                 .requires("fra")
                 .conflicts_with("dato")
                 .help(
-                    "Brukes samme med --fra for å føre timer i en periode, er inklusiv.\nF.eks. \"--til 2021-03-05\"",
+                    "Brukes samme med --fra for å føre timer i en periode, er inklusiv.\n\
+                    F.eks. \"--til 2021-03-05\"",
                 ),
         )
         .arg(
             Arg::new("forrige-uke")
                 .long("forrige-uke")
-                .conflicts_with_all(["neste-uke", "dato", "fra", "til" ])
+                .conflicts_with_all(["neste-uke", "dato", "fra", "til"])
                 .display_order(8) // one more than --søndag
                 .action(ArgAction::SetTrue)
                 .help(
-                    "Setter relativ dato til forrige uke. Brukes sammen med ukedagene til å velge en dag i forrige uke"
-                )
+                    "Setter relativ dato til forrige uke. \
+                    Brukes sammen med ukedagene til å velge en dag i forrige uke",
+                ),
         )
         .arg(
             Arg::new("neste-uke")
                 .long("neste-uke")
-                .conflicts_with_all(["forrige-uke", "dato", "fra", "til" ])
+                .conflicts_with_all(["forrige-uke", "dato", "fra", "til"])
                 .display_order(9) // one more than --forrige-uke
                 .action(ArgAction::SetTrue)
                 .help(
-                    "Setter relativ dato til neste uke. Brukes sammen med ukedagene til å velge en dag i neste uke"
-                )
+                    "Setter relativ dato til neste uke. \
+                    Brukes sammen med ukedagene til å velge en dag i neste uke",
+                ),
         )
         .args(day_args)
 }
@@ -144,10 +150,7 @@ pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Resu
     let hours: f32 = matches.get_one::<String>("timer").unwrap().parse()?;
     let time = Duration::minutes((hours * 60.0) as i64);
     if time > Duration::days(1) {
-        return Err(anyhow!(
-            "Det er ikke mulig å føre {} timer på én dag",
-            hours
-        ));
+        return Err(anyhow!("Det er ikke mulig å føre {} timer på én dag", hours));
     }
 
     let dates = if matches.contains_id("fra") {
@@ -175,9 +178,7 @@ pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Resu
         vec![date]
     } else {
         let weekdays = time::Weekdays::all();
-        let weekday = weekdays
-            .iter()
-            .find(|w| matches.get_flag(w.get_weekday().full_name));
+        let weekday = weekdays.iter().find(|w| matches.get_flag(w.get_weekday().full_name));
 
         if let Some(weekday) = weekday {
             let today = Utc::now().date_naive();
@@ -190,8 +191,7 @@ pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Resu
             };
 
             let days_from_monday = base_date.weekday().num_days_from_monday();
-            let days_until_date =
-                weekday.as_chrono_weekday().num_days_from_monday() as i64 - days_from_monday as i64;
+            let days_until_date = weekday.as_chrono_weekday().num_days_from_monday() as i64 - days_from_monday as i64;
             let date = base_date + Duration::days(days_until_date);
 
             vec![date]
@@ -236,15 +236,11 @@ impl AuthorizedHttpClient {
         time: &'a Duration,
         date: &'a NaiveDate,
     ) -> Result<SetTimestampResult<'a>> {
-        let current_time = self
-            .get_timestamp_on_project_for_date(project_id, date)
-            .await?;
+        let current_time = self.get_timestamp_on_project_for_date(project_id, date).await?;
         let time_diff = *time - current_time;
 
         if !time_diff.is_zero() {
-            self.internal_set_timestamp(project_id, date, *time)
-                .await
-                .map(|_| ())?;
+            self.internal_set_timestamp(project_id, date, *time).await.map(|_| ())?;
         }
 
         Ok(SetTimestampResult {

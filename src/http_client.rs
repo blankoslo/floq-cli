@@ -28,10 +28,7 @@ impl UnauthorizedHttpClient {
             header::CONTENT_TYPE,
             header::HeaderValue::from_static("application/json"),
         );
-        headers.insert(
-            header::ACCEPT,
-            header::HeaderValue::from_static("application/json"),
-        );
+        headers.insert(header::ACCEPT, header::HeaderValue::from_static("application/json"));
 
         Self {
             client: Client::builder()
@@ -43,19 +40,15 @@ impl UnauthorizedHttpClient {
 
     pub fn into_authorized_with_user(self, user: &User) -> AuthorizedHttpClient {
         let mut headers = header::HeaderMap::new();
-        let mut auth_value =
-            header::HeaderValue::from_str(&format!("Bearer {}", user.access_token))
-                .expect("Ugyldig access token, vennligst logg inn på nytt");
+        let mut auth_value = header::HeaderValue::from_str(&format!("Bearer {}", user.access_token))
+            .expect("Ugyldig access token, vennligst logg inn på nytt");
         auth_value.set_sensitive(true);
         headers.insert(header::AUTHORIZATION, auth_value);
         headers.insert(
             header::CONTENT_TYPE,
             header::HeaderValue::from_static("application/json"),
         );
-        headers.insert(
-            header::ACCEPT,
-            header::HeaderValue::from_static("application/json"),
-        );
+        headers.insert(header::ACCEPT, header::HeaderValue::from_static("application/json"));
 
         AuthorizedHttpClient {
             client: Client::builder()

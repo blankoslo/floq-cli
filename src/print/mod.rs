@@ -36,20 +36,11 @@ impl<T> TableMaker<T> {
 
         let TableMaker { titles, extractors } = self;
 
-        let titles = titles
-            .into_iter()
-            .map(|t| Cell::new(&t).style_spec("b"))
-            .collect();
+        let titles = titles.into_iter().map(|t| Cell::new(&t).style_spec("b")).collect();
         table.set_titles(Row::new(titles));
 
         rows.iter()
-            .map(|t| {
-                extractors
-                    .iter()
-                    .map(|e| e(t))
-                    .map(|s| Cell::new(&s))
-                    .collect()
-            })
+            .map(|t| extractors.iter().map(|e| e(t)).map(|s| Cell::new(&s)).collect())
             .map(Row::new)
             .for_each(|row| {
                 table.add_row(row);

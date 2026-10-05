@@ -26,15 +26,9 @@ async fn main() -> Result<()> {
         .get_matches();
 
     match matches.subcommand() {
-        Some((project::SUBCOMMAND_NAME, sub_matches)) => {
-            project::execute(sub_matches, &mut io::stdout()).await
-        }
-        Some((user::SUBCOMMAND_NAME, sub_matches)) => {
-            user::execute(sub_matches, &mut io::stdout()).await
-        }
-        Some((timestamp::SUBCOMMAND_NAME, sub_matches)) => {
-            timestamp::execute(sub_matches, &mut io::stdout()).await
-        }
+        Some((project::SUBCOMMAND_NAME, sub_matches)) => project::execute(sub_matches, &mut io::stdout()).await,
+        Some((user::SUBCOMMAND_NAME, sub_matches)) => user::execute(sub_matches, &mut io::stdout()).await,
+        Some((timestamp::SUBCOMMAND_NAME, sub_matches)) => timestamp::execute(sub_matches, &mut io::stdout()).await,
         Some((timestamp::history::SUBCOMMAND_NAME, sub_matches)) => {
             timestamp::history::execute(sub_matches, &mut io::stdout()).await
         }

@@ -1,7 +1,5 @@
 use super::Employee;
-use crate::http_client::{
-    HandleInvalidToken, HandleMalformedBody, UnauthorizedHttpClient, floq_api_domain,
-};
+use crate::http_client::{HandleInvalidToken, HandleMalformedBody, UnauthorizedHttpClient, floq_api_domain};
 
 use anyhow::{Context, Result};
 use serde::Deserialize;

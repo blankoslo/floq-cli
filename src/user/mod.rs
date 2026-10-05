@@ -17,10 +17,7 @@ pub fn subcommand_app() -> Command {
         .about("Brukerhåndtering")
         .arg_required_else_help(true)
         .subcommand(Command::new("logg-inn").about("Logg inn i Floq"))
-        .subcommand(
-            Command::new("logg-ut")
-                .about("Logg ut av Floq (sletter din lokale brukerkonfigurasjon)"),
-        )
+        .subcommand(Command::new("logg-ut").about("Logg ut av Floq (sletter din lokale brukerkonfigurasjon)"))
 }
 
 pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Result<()> {
@@ -56,9 +53,7 @@ pub async fn authorize_user<OUT: Write + Send>(out: &mut OUT) -> Result<User> {
     let client = UnauthorizedHttpClient::new();
     let authorized_user = client.authorize(out).await?;
 
-    let employee = client
-        .get_logged_in_employee(&authorized_user.access_token)
-        .await?;
+    let employee = client.get_logged_in_employee(&authorized_user.access_token).await?;
 
     let config = config::UserConfig {
         employee_id: employee.id,
@@ -87,10 +82,7 @@ pub async fn load_user_from_config<OUT: Write + Send>(out: &mut OUT) -> Result<U
 
     match config {
         None => {
-            writeln!(
-                out,
-                "Fant ingen konfigurasjon så starter løpet for autentisering nå:"
-            )?;
+            writeln!(out, "Fant ingen konfigurasjon så starter løpet for autentisering nå:")?;
             authorize_user(out).await
         }
         Some(mut c) if c.access_token_expires < now - Duration::minutes(1) => {

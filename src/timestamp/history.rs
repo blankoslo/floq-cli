@@ -14,75 +14,75 @@ pub const SUBCOMMAND_NAME: &str = "timehistorikk";
 
 pub fn subcommand_app() -> Command {
     Command::new(SUBCOMMAND_NAME)
-    .about("Vis timeføring")
-    .arg(
-        Arg::new("dato")
-            .long("dato")
-            .short('d')
-            .num_args(1)
-            .display_order(1)
-            .help("Dagen du ønsker å vise timer for.\nF.eks. \"--dato 2021-03-01\""),
-    )
-    .arg(
-        Arg::new("fra")
-            .long("fra")
-            .num_args(1)
-            .requires("til")
-            .conflicts_with("dato")
-            .display_order(2)
-            .help(
-                "Første dagen å vise timer for, settes til mandag denne uken hvis utelatt.\nEr inklusiv. F.eks. \"--fra 2021-03-01\" ",
-            ),
-    )
-    .arg(
-        Arg::new("til")
-            .long("til")
-            .num_args(1)
-            .requires("fra")
-            .conflicts_with("dato")
-            .display_order(3)
-            .help(
-                "Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt.\nEr inklusiv. F.eks. \"--til 2021-03-05\"",
-            ),
-    )
-    .arg(
-        Arg::new("forrige-uke")
-            .long("forrige-uke")
-            .conflicts_with_all(["dato", "fra", "til", "neste-uke"])
-            .display_order(4)
-            .action(ArgAction::SetTrue)
-            .help("Vis timer ført i forrige uke.")
-    )
-    .arg(
-        Arg::new("neste-uke")
-            .long("neste-uke")
-            .conflicts_with_all(["dato", "fra", "til", "forrige-uke"])
-            .display_order(5)
-            .action(ArgAction::SetTrue)
-            .help("Vis timer ført for neste uke.")
-    )
-    .arg(
-        Arg::new("snu-tabell")
-            .long("snu-tabell")
-            .conflicts_with("ikke-snu-tabell")
-            .display_order(6)
-            .action(ArgAction::SetTrue)
-            .help(
+        .about("Vis timeføring")
+        .arg(
+            Arg::new("dato")
+                .long("dato")
+                .short('d')
+                .num_args(1)
+                .display_order(1)
+                .help("Dagen du ønsker å vise timer for.\nF.eks. \"--dato 2021-03-01\""),
+        )
+        .arg(
+            Arg::new("fra")
+                .long("fra")
+                .num_args(1)
+                .requires("til")
+                .conflicts_with("dato")
+                .display_order(2)
+                .help(
+"Første dagen å vise timer for, settes til mandag denne uken hvis utelatt.\nEr inklusiv. F.eks. \"--fra 2021-03-01\"",
+                ),
+        )
+        .arg(
+            Arg::new("til")
+                .long("til")
+                .num_args(1)
+                .requires("fra")
+                .conflicts_with("dato")
+                .display_order(3)
+                .help(
+"Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt.\nEr inklusiv. F.eks. \"--til 2021-03-05\"",
+                ),
+        )
+        .arg(
+            Arg::new("forrige-uke")
+                .long("forrige-uke")
+                .conflicts_with_all(["dato", "fra", "til", "neste-uke"])
+                .display_order(4)
+                .action(ArgAction::SetTrue)
+                .help("Vis timer ført i forrige uke."),
+        )
+        .arg(
+            Arg::new("neste-uke")
+                .long("neste-uke")
+                .conflicts_with_all(["dato", "fra", "til", "forrige-uke"])
+                .display_order(5)
+                .action(ArgAction::SetTrue)
+                .help("Vis timer ført for neste uke."),
+        )
+        .arg(
+            Arg::new("snu-tabell")
+                .long("snu-tabell")
+                .conflicts_with("ikke-snu-tabell")
+                .display_order(6)
+                .action(ArgAction::SetTrue)
+                .help(
 "Snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
-Dette blir gjort automatisk hvis det skal vises timer for mer enn én uke."
-            )
-    )
-    .arg(
-        Arg::new("ikke-snu-tabell")
-            .long("ikke-snu-tabell")
-            .conflicts_with("snu-tabell")
-            .display_order(7)
-            .action(ArgAction::SetTrue)
-            .help(
+Dette blir gjort automatisk hvis det skal vises timer for mer enn én uke.",
+                ),
+        )
+        .arg(
+            Arg::new("ikke-snu-tabell")
+                .long("ikke-snu-tabell")
+                .conflicts_with("snu-tabell")
+                .display_order(7)
+                .action(ArgAction::SetTrue)
+                .help(
 "Ikke snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
-Stopper det fra å bli gjort automatisk hvis det skal vises timer for mer enn én uke."
-            )
-    )
+Stopper det fra å bli gjort automatisk hvis det skal vises timer for mer enn én uke.",
+                ),
+        )
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -141,15 +141,10 @@ pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Resu
 
         let mut table_maker = print::TableMaker::new();
 
-        table_maker.titles(vec![
-            "PROSJEKT".to_string(),
-            TimestampDate(&date).to_string(),
-        ]);
+        table_maker.titles(vec!["PROSJEKT".to_string(), TimestampDate(&date).to_string()]);
 
         table_maker.with(Box::new(|pt: &ProjectTimestamp| pt.project_id.clone()));
-        table_maker.with(Box::new(move |pt| {
-            TimestampHours(&pt.timestamp.time).to_string()
-        }));
+        table_maker.with(Box::new(move |pt| TimestampHours(&pt.timestamp.time).to_string()));
 
         table_maker.into_table(timestamps.as_slice()).print(out)?;
     } else {
@@ -205,9 +200,7 @@ pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Resu
 
             table_maker.into_table(timestamps.as_slice()).print(out)?;
         } else {
-            let mut timestamps = client
-                .get_sum_timestamps_by_project_for_period(from, to)
-                .await?;
+            let mut timestamps = client.get_sum_timestamps_by_project_for_period(from, to).await?;
             timestamps.sort_by(|t0, t1| t0.project_id.cmp(&t1.project_id));
             let timestamped_dates: HashMap<NaiveDate, ()> = timestamps
                 .iter()
@@ -218,20 +211,20 @@ pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Resu
 
             let mut table_maker = print::TableMaker::new();
 
-            let titles = from.iter_days().take_while(|d| d <= &to).fold(
-                vec!["PROSJEKT".to_string()],
-                |mut titles, next| {
-                    // skip days in weekend if no timestamp
-                    let weekday = next.weekday();
-                    let is_weekend = weekday == Weekday::Sat || weekday == Weekday::Sun;
-                    if !is_weekend || timestamped_dates.contains_key(&next) {
-                        titles.push(TimestampDate(&next).to_string());
-                    } else {
-                        skipped_days.push(next);
-                    }
-                    titles
-                },
-            );
+            let titles =
+                from.iter_days()
+                    .take_while(|d| d <= &to)
+                    .fold(vec!["PROSJEKT".to_string()], |mut titles, next| {
+                        // skip days in weekend if no timestamp
+                        let weekday = next.weekday();
+                        let is_weekend = weekday == Weekday::Sat || weekday == Weekday::Sun;
+                        if !is_weekend || timestamped_dates.contains_key(&next) {
+                            titles.push(TimestampDate(&next).to_string());
+                        } else {
+                            skipped_days.push(next);
+                        }
+                        titles
+                    });
             table_maker.titles(titles);
 
             table_maker.with(Box::new(|pt: &ProjectTimestamps| pt.project_id.clone()));
@@ -261,9 +254,8 @@ impl AuthorizedHttpClient {
     ) -> Result<Vec<ProjectTimestamps>> {
         let project_timestamps = self.get_timestamps_for_period(from, to).await?;
 
-        let project_to_timestamps: HashMap<String, ProjectTimestamps> = project_timestamps
-            .into_iter()
-            .fold(HashMap::new(), |mut res, next| {
+        let project_to_timestamps: HashMap<String, ProjectTimestamps> =
+            project_timestamps.into_iter().fold(HashMap::new(), |mut res, next| {
                 let key = next.project_id.clone();
                 let value = match res.remove(&next.project_id) {
                     Some(mut pt) => {

@@ -1,6 +1,4 @@
-use crate::http_client::{
-    HandleInvalidToken, HandleMalformedBody, UnauthorizedHttpClient, floq_domain,
-};
+use crate::http_client::{HandleInvalidToken, HandleMalformedBody, UnauthorizedHttpClient, floq_domain};
 
 use std::io::Write;
 use std::time::Duration;
@@ -23,18 +21,21 @@ impl UnauthorizedHttpClient {
         let (tx, rx) = mpsc::sync_channel::<Result<AuthorizedUser>>(0);
 
         let server = rouille::Server::new("0.0.0.0:0", move |request| {
-        match handle_callback(request).context("Error on handle callback from Floq Auth") {
-            Ok(tokens) => {
-                tx.send(Ok(tokens)).unwrap();
-                Response::text("Flott, da er du logget inn i floq cli!\n\n(Bare å lukke denne fanen)")
-            },
-            Err(e) => {
-                tx.send(Err(e)).unwrap();
-                Response::text("An error occurred while trying to handle Auth callback, see command output for more details")
+            match handle_callback(request).context("Error on handle callback from Floq Auth") {
+                Ok(tokens) => {
+                    tx.send(Ok(tokens)).unwrap();
+                    Response::text("Flott, da er du logget inn i floq cli!\n\n(Bare å lukke denne fanen)")
+                }
+                Err(e) => {
+                    tx.send(Err(e)).unwrap();
+                    Response::text(
+                        "An error occurred while trying to handle Auth callback, \
+                    see command output for more details",
+                    )
+                }
             }
-        }
-    })
-    .map_err(|e| anyhow!("{}", e))?;
+        })
+        .map_err(|e| anyhow!("{}", e))?;
         let port = server.server_addr().port();
         let url = format!("{}/login/oauth?to=http://localhost:{}", floq_domain(), port);
 
@@ -73,7 +74,10 @@ impl UnauthorizedHttpClient {
             .await
             .handle_floq_response()
             .await
-            .context("Noe gikk galt under oppdatering av innloggingsinformasjonen, vennligst logg inn på nytt")?
+            .context(
+                "Noe gikk galt under oppdatering av innloggingsinformasjonen, \
+                vennligst logg inn på nytt",
+            )?
             .json::<RefreshAccessTokenResponse>()
             .await
             .handle_malformed_body()
@@ -83,39 +87,32 @@ impl UnauthorizedHttpClient {
 }
 
 fn handle_callback(request: &Request) -> Result<AuthorizedUser> {
-    let mut params =
-        match serde_urlencoded::from_str::<HashMap<String, String>>(request.raw_query_string()) {
-            Ok(p) => p,
-            Err(e) => {
-                return Err(anyhow!("Unable to parse callback request URL"))
-                    .with_context(|| format!("Deserialization of query params failed: {:?}", e));
-            }
-        };
+    let mut params = match serde_urlencoded::from_str::<HashMap<String, String>>(request.raw_query_string()) {
+        Ok(p) => p,
+        Err(e) => {
+            return Err(anyhow!("Unable to parse callback request URL"))
+                .with_context(|| format!("Deserialization of query params failed: {:?}", e));
+        }
+    };
 
     let access_token = match params.remove("access_token") {
         Some(at) => at,
         None => {
-            return Err(anyhow!(
-                "Required param 'access_token' is missing from callback"
-            ));
+            return Err(anyhow!("Required param 'access_token' is missing from callback"));
         }
     };
 
     let refresh_token = match params.remove("refresh_token") {
         Some(rt) => rt,
         None => {
-            return Err(anyhow!(
-                "Required param 'refresh_token' is missing from callback"
-            ));
+            return Err(anyhow!("Required param 'refresh_token' is missing from callback"));
         }
     };
 
     let expires_at: String = match params.remove("expiry_date") {
         Some(ea) => ea,
         None => {
-            return Err(anyhow!(
-                "Required param 'expiry_date' is missing from callback"
-            ));
+            return Err(anyhow!("Required param 'expiry_date' is missing from callback"));
         }
     };
     let expires_at: DateTime<FixedOffset> = expires_at

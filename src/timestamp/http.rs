@@ -42,11 +42,7 @@ impl TimestampedProjectsResponse {
 }
 
 impl AuthorizedHttpClient {
-    pub async fn get_timestamp_on_project_for_date(
-        &self,
-        project_id: &str,
-        date: &NaiveDate,
-    ) -> Result<Duration> {
+    pub async fn get_timestamp_on_project_for_date(&self, project_id: &str, date: &NaiveDate) -> Result<Duration> {
         let url = format!(
             "{}/time_entry?select=minutes&employee=eq.{}&project=eq.{}&date=eq.{}",
             floq_api_domain(),
@@ -72,11 +68,7 @@ impl AuthorizedHttpClient {
             .unwrap_or_else(Duration::zero))
     }
 
-    pub async fn get_timestamps_for_period(
-        &self,
-        from: NaiveDate,
-        to: NaiveDate,
-    ) -> Result<Vec<ProjectTimestamp>> {
+    pub async fn get_timestamps_for_period(&self, from: NaiveDate, to: NaiveDate) -> Result<Vec<ProjectTimestamp>> {
         let difference = to.signed_duration_since(from).num_days();
 
         let mut futures: FuturesUnordered<_> = (0..=difference)
@@ -130,12 +122,7 @@ struct TimestampRequest<'a> {
 }
 
 impl AuthorizedHttpClient {
-    pub async fn internal_set_timestamp(
-        &self,
-        project_id: &str,
-        date: &NaiveDate,
-        time: Duration,
-    ) -> Result<()> {
+    pub async fn internal_set_timestamp(&self, project_id: &str, date: &NaiveDate, time: Duration) -> Result<()> {
         let body = TimestampRequest {
             creator: self.employee_id,
             employee: self.employee_id,
@@ -161,7 +148,8 @@ impl AuthorizedHttpClient {
             .context("Noe gikk galt under føring av timer")?;
 
         match response.status() {
-            // Upsert returns either 200 OK or 201 Created depending on whether a new row was inserted or an existing row was updated.
+            // Upsert returns either 200 OK or 201 Created
+            // depending on whether a new row was inserted or an existing row was updated.
             StatusCode::OK | StatusCode::CREATED => Ok(()),
             sc => Err(anyhow!(
                 "Fikk en annen statuskode enn forventet fra POST /time_entry {}",

@@ -43,9 +43,7 @@ pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Resu
     let mut projects = if all {
         client.get_projects().await?
     } else {
-        client
-            .get_current_timestamped_projects_for_employee()
-            .await?
+        client.get_current_timestamped_projects_for_employee().await?
     };
     projects.sort_by(|p1, p2| p1.id.cmp(&p2.id));
 
@@ -78,10 +76,7 @@ pub struct Customer {
 
 impl AuthorizedHttpClient {
     pub async fn get_projects(&self) -> Result<Vec<Project>> {
-        let url = format!(
-            "{}/projects?select=id,name,active,customer(id,name)",
-            floq_api_domain()
-        );
+        let url = format!("{}/projects?select=id,name,active,customer(id,name)", floq_api_domain());
 
         self.client
             .get(url)
@@ -132,30 +127,22 @@ impl AuthorizedHttpClient {
         self.get_timestamped_projects_for_employee(today).await
     }
 
-    pub async fn get_timestamped_projects_for_employee(
-        &self,
-        date: NaiveDate,
-    ) -> Result<Vec<Project>> {
+    pub async fn get_timestamped_projects_for_employee(&self, date: NaiveDate) -> Result<Vec<Project>> {
         let lower = date - Duration::weeks(2);
         let upper = date + Duration::days(1) * (6 - date.weekday().num_days_from_monday() as i32); // sunday of the same week as date
 
         let body = ProjectsForEmployeeRequest {
             employee_id: self.employee_id,
-            date_range: format!(
-                "({}, {})",
-                lower.format("%Y-%m-%d"),
-                upper.format("%Y-%m-%d")
-            ),
+            date_range: format!("({}, {})", lower.format("%Y-%m-%d"), upper.format("%Y-%m-%d")),
         }
         .serialize(serde_json::value::Serializer)?
         .to_string();
 
-        let url = format!(
-            "{}/rpc/projects_info_for_employee_in_period",
-            floq_api_domain()
-        );
+        let url = format!("{}/rpc/projects_info_for_employee_in_period", floq_api_domain());
 
-        Ok(self.client.post(url)
+        Ok(self
+            .client
+            .post(url)
             .body(body)
             .send()
             .await
@@ -166,6 +153,8 @@ impl AuthorizedHttpClient {
             .await
             .handle_malformed_body()
             .context("Noe gikk kalt under lesing av responsen fra /rpc/projects_info_for_employee_in_period")?
-            .into_iter().map(|r| r.into_project()).collect())
+            .into_iter()
+            .map(|r| r.into_project())
+            .collect())
     }
 }

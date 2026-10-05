@@ -35,9 +35,7 @@ pub async fn load_config() -> Result<Option<UserConfig>> {
         Ok(s) => s,
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
         Err(e) => {
-            return Err(e).with_context(|| {
-                format!("Klarte ikke å lese konfigurasjonsfilen {}", file_path())
-            });
+            return Err(e).with_context(|| format!("Klarte ikke å lese konfigurasjonsfilen {}", file_path()));
         }
     };
 
@@ -48,9 +46,8 @@ pub async fn load_config() -> Result<Option<UserConfig>> {
 }
 
 pub async fn update_config(config: &UserConfig) -> Result<()> {
-    let file_content = toml::to_string(config).context(
-        "Klarte ikke å bygge inneholdet i konfigigurasjonsfilen, vennligst logg inn på nytt",
-    )?;
+    let file_content = toml::to_string(config)
+        .context("Klarte ikke å bygge inneholdet i konfigigurasjonsfilen, vennligst logg inn på nytt")?;
 
     match fs::create_dir(folder_path()).await {
         Ok(_) => Ok(()),
@@ -61,12 +58,9 @@ pub async fn update_config(config: &UserConfig) -> Result<()> {
     }
     .with_context(|| format!("Klarte ikke å opprette mappen {}", folder_path()))?;
 
-    fs::write(file_path(), file_content).await.with_context(|| {
-        format!(
-            "Klarte ikke å skrive til konfirgurasjonsfilen {}",
-            file_path()
-        )
-    })
+    fs::write(file_path(), file_content)
+        .await
+        .with_context(|| format!("Klarte ikke å skrive til konfirgurasjonsfilen {}", file_path()))
 }
 
 pub async fn delete_config() -> Result<()> {
