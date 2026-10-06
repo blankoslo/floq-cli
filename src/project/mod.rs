@@ -1,7 +1,7 @@
-use crate::http_client::{AuthorizedHttpClient, UnauthorizedHttpClient, floq_api_domain};
+use crate::http_client::{FloqApiClient, floq_api_domain};
 use crate::http_client::{HandleInvalidToken, HandleMalformedBody};
 use crate::print::TableMaker;
-use crate::user;
+use crate::session::FloqSessionHandler;
 
 use std::io::Write;
 
@@ -35,15 +35,23 @@ pub fn subcommand_app() -> Command {
         )
 }
 
-pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Result<()> {
-    let user = user::load_user_from_config(out).await?;
-    let client = UnauthorizedHttpClient::new().into_authorized_with_user(&user);
+pub async fn execute<T: Write + Send>(
+    matches: &ArgMatches,
+    out: &mut T,
+    session_handler: &mut FloqSessionHandler,
+) -> Result<()> {
+    let session = session_handler.open(out, Duration::minutes(1)).await?;
+    let client = FloqApiClient::from_session(session);
 
     let all = matches.get_flag("alle");
     let mut projects = if all {
         client.get_projects().await?
     } else {
-        client.get_current_timestamped_projects_for_employee().await?
+        let employee_id = client.get_logged_in_employee().await?.id;
+
+        client
+            .get_current_timestamped_projects_for_employee(employee_id)
+            .await?
     };
     projects.sort_by(|p1, p2| p1.id.cmp(&p2.id));
 
@@ -74,7 +82,7 @@ pub struct Customer {
     pub name: String,
 }
 
-impl AuthorizedHttpClient {
+impl FloqApiClient {
     pub async fn get_projects(&self) -> Result<Vec<Project>> {
         let url = format!("{}/projects?select=id,name,active,customer(id,name)", floq_api_domain());
 
@@ -120,19 +128,23 @@ impl ProjectForEmployeeResponse {
     }
 }
 
-impl AuthorizedHttpClient {
-    pub async fn get_current_timestamped_projects_for_employee(&self) -> Result<Vec<Project>> {
+impl FloqApiClient {
+    pub async fn get_current_timestamped_projects_for_employee(&self, employee_id: u16) -> Result<Vec<Project>> {
         let today = Utc::now().date_naive();
 
-        self.get_timestamped_projects_for_employee(today).await
+        self.get_timestamped_projects_for_employee(employee_id, today).await
     }
 
-    pub async fn get_timestamped_projects_for_employee(&self, date: NaiveDate) -> Result<Vec<Project>> {
+    pub async fn get_timestamped_projects_for_employee(
+        &self,
+        employee_id: u16,
+        date: NaiveDate,
+    ) -> Result<Vec<Project>> {
         let lower = date - Duration::weeks(2);
         let upper = date + Duration::days(1) * (6 - date.weekday().num_days_from_monday() as i32); // sunday of the same week as date
 
         let body = ProjectsForEmployeeRequest {
-            employee_id: self.employee_id,
+            employee_id,
             date_range: format!("({}, {})", lower.format("%Y-%m-%d"), upper.format("%Y-%m-%d")),
         }
         .serialize(serde_json::value::Serializer)?

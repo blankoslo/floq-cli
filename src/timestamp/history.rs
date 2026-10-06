@@ -1,8 +1,5 @@
 use super::{TimestampDate, TimestampHours};
-use crate::{
-    http_client::{AuthorizedHttpClient, UnauthorizedHttpClient},
-    print, user,
-};
+use crate::{http_client::FloqApiClient, print, session::FloqSessionHandler};
 
 use std::{collections::HashMap, io::Write};
 
@@ -129,14 +126,20 @@ impl ProjectTimestamps {
     }
 }
 
-pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Result<()> {
-    let user = user::load_user_from_config(out).await?;
-    let client = UnauthorizedHttpClient::new().into_authorized_with_user(&user);
+pub async fn execute<T: Write + Send>(
+    matches: &ArgMatches,
+    out: &mut T,
+    session_handler: &mut FloqSessionHandler,
+) -> Result<()> {
+    let session = session_handler.open(out, Duration::minutes(1)).await?;
+    let client = FloqApiClient::from_session(session);
+
+    let employee_id = client.get_logged_in_employee().await?.id;
 
     if matches.contains_id("dato") {
         let date = matches.get_one::<String>("dato").unwrap().parse()?;
 
-        let mut timestamps = client.get_timestamps_for_date(date).await?;
+        let mut timestamps = client.get_timestamps_for_date(employee_id, date).await?;
         timestamps.sort_by(|t0, t1| t0.project_id.cmp(&t1.project_id));
 
         let mut table_maker = print::TableMaker::new();
@@ -185,7 +188,7 @@ pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Resu
         let dont_turn_table = matches.get_flag("ikke-snu-tabell");
         if turn_table || (!dont_turn_table && to - from > Duration::days(6)) {
             // auto transpose if more than one week
-            let mut timestamps = client.get_timestamps_for_period(from, to).await?;
+            let mut timestamps = client.get_timestamps_for_period(employee_id, from, to).await?;
             timestamps.sort_by_key(|t| t.timestamp.date);
 
             let mut table_maker = print::TableMaker::new();
@@ -200,7 +203,9 @@ pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Resu
 
             table_maker.into_table(timestamps.as_slice()).print(out)?;
         } else {
-            let mut timestamps = client.get_sum_timestamps_by_project_for_period(from, to).await?;
+            let mut timestamps = client
+                .get_sum_timestamps_by_project_for_period(employee_id, from, to)
+                .await?;
             timestamps.sort_by(|t0, t1| t0.project_id.cmp(&t1.project_id));
             let timestamped_dates: HashMap<NaiveDate, ()> = timestamps
                 .iter()
@@ -246,13 +251,14 @@ pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Resu
     Ok(())
 }
 
-impl AuthorizedHttpClient {
+impl FloqApiClient {
     pub async fn get_sum_timestamps_by_project_for_period(
         &self,
+        employee_id: u16,
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<Vec<ProjectTimestamps>> {
-        let project_timestamps = self.get_timestamps_for_period(from, to).await?;
+        let project_timestamps = self.get_timestamps_for_period(employee_id, from, to).await?;
 
         let project_to_timestamps: HashMap<String, ProjectTimestamps> =
             project_timestamps.into_iter().fold(HashMap::new(), |mut res, next| {
