@@ -1,16 +1,8 @@
-use crate::session::FloqSession;
-
-use std::option_env;
+use crate::{env::ENV, session::FloqSession};
 
 use anyhow::{Context, Result, anyhow};
 use reqwest::{Client, StatusCode, header};
 use serde::Deserialize;
-
-const FLOQ_API_DOMAIN: Option<&str> = option_env!("FLOQ_API_DOMAIN");
-
-pub fn floq_api_domain() -> &'static str {
-    FLOQ_API_DOMAIN.unwrap_or("https://api-test.floq.no")
-}
 
 #[derive(Debug, Clone)]
 pub struct FloqApiClient {
@@ -49,7 +41,7 @@ impl FloqApiClient {
 
     pub async fn get_logged_in_employee(&self) -> Result<Employee> {
         self.client
-            .post(format!("{}/rpc/who_am_i", floq_api_domain()))
+            .post(format!("{}/rpc/who_am_i", ENV.api_domain))
             .send()
             .await
             .handle_floq_response()

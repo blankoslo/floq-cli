@@ -13,16 +13,7 @@ use openidconnect::{
 use rouille::Response;
 use serde::{Deserialize, Serialize};
 
-const FLOQ_ISSUER: Option<&str> = option_env!("FLOQ_ISSUER");
-const CLIENT_ID: Option<&str> = option_env!("CLIENT_ID");
-
-pub fn floq_issuer() -> &'static str {
-    FLOQ_ISSUER.unwrap_or("https://test.floq.no")
-}
-
-pub fn client_id() -> &'static str {
-    CLIENT_ID.unwrap_or("745f8da8135720902b0a164f59f59318")
-}
+use crate::env::ENV;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct AuthorizeResponse {
@@ -78,7 +69,7 @@ pub struct FloqAuth {
 
 impl Default for FloqAuth {
     fn default() -> Self {
-        Self::new(floq_issuer().to_string(), client_id().to_string()).unwrap()
+        Self::new(ENV.issuer.to_string(), ENV.client_id.to_string()).unwrap()
     }
 }
 

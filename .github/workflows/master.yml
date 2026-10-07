@@ -11,19 +11,12 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
-    env:
-      FLOQ_ISSUER: https://test.floq.no
-      CLIENT_ID: 745f8da8135720902b0a164f59f59318
-      FLOQ_API_DOMAIN: https://api-test.floq.no
-
     steps:
     - uses: actions/checkout@v2
     - run: rustup component add clippy
     - name: Lint
-      run: cargo clippy -- -D warnings 
+      run: cargo clippy -- -D warnings
     - name: Build
       run: cargo build --verbose
     - name: Run tests
