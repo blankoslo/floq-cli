@@ -1,5 +1,5 @@
-use crate::http_client::{FloqApiClient, floq_api_domain};
-use crate::http_client::{HandleInvalidToken, HandleMalformedBody};
+use crate::env::ENV;
+use crate::http_client::{FloqApiClient, HandleInvalidToken, HandleMalformedBody};
 use crate::print::TableMaker;
 use crate::session::FloqSessionHandler;
 
@@ -84,7 +84,7 @@ pub struct Customer {
 
 impl FloqApiClient {
     pub async fn get_projects(&self) -> Result<Vec<Project>> {
-        let url = format!("{}/projects?select=id,name,active,customer(id,name)", floq_api_domain());
+        let url = format!("{}/projects?select=id,name,active,customer(id,name)", ENV.api_domain);
 
         self.client
             .get(url)
@@ -150,7 +150,7 @@ impl FloqApiClient {
         .serialize(serde_json::value::Serializer)?
         .to_string();
 
-        let url = format!("{}/rpc/projects_info_for_employee_in_period", floq_api_domain());
+        let url = format!("{}/rpc/projects_info_for_employee_in_period", ENV.api_domain);
 
         Ok(self
             .client

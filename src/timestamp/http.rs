@@ -1,6 +1,6 @@
 use super::history::{ProjectTimestamp, Timestamp};
-use crate::http_client::{FloqApiClient, floq_api_domain};
-use crate::http_client::{HandleInvalidToken, HandleMalformedBody};
+use crate::env::ENV;
+use crate::http_client::{FloqApiClient, HandleInvalidToken, HandleMalformedBody};
 
 use anyhow::{Context, Result, anyhow};
 use chrono::{Duration, NaiveDate};
@@ -50,7 +50,7 @@ impl FloqApiClient {
     ) -> Result<Duration> {
         let url = format!(
             "{}/time_entry?select=minutes&employee=eq.{}&project=eq.{}&date=eq.{}",
-            floq_api_domain(),
+            ENV.api_domain,
             employee_id,
             project_id,
             date.format("%Y-%m-%d"),
@@ -97,7 +97,7 @@ impl FloqApiClient {
         let body = TimestampedProjectsRequest { employee_id, date }
             .serialize(serde_json::value::Serializer)?
             .to_string();
-        let url = format!("{}/rpc/projects_for_employee_for_date", floq_api_domain());
+        let url = format!("{}/rpc/projects_for_employee_for_date", ENV.api_domain);
 
         Ok(self
             .client
@@ -150,7 +150,7 @@ impl FloqApiClient {
             .client
             .post(format!(
                 "{}/time_entry?on_conflict=employee,project,date",
-                floq_api_domain()
+                ENV.api_domain,
             ))
             .body(body)
             .header("Prefer", "resolution=merge-duplicates")

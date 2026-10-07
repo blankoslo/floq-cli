@@ -6,6 +6,7 @@ use clap::Command;
 use crate::session::FloqSessionHandler;
 
 mod auth;
+mod env;
 mod http_client;
 mod print;
 mod project;

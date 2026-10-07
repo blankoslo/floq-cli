@@ -5,48 +5,34 @@ on: [push]
 jobs:
   release-linux:
     runs-on: ubuntu-latest
-
-    env:
-      FLOQ_ISSUER: https://inni.blank.no
-      CLIENT_ID: c7d39ede18d18bee3528b7f6c1962806
-      FLOQ_API_DOMAIN: https://api-prod.floq.no
-
     if: startsWith(github.ref, 'refs/tags/')
-
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-    
+
       - name: Install latest rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           default: true
           override: true
-    
+
       - name: Build
-        run: > 
-          cargo build --workspace --release && 
-            strip target/release/floq && 
+        run: >
+          cargo build --no-default-features --features prod --workspace --release &&
+            strip target/release/floq &&
             mv target/release/floq target/release/floq_linux
-    
+
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: target/release/floq_linux
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
+
   release-win:
     runs-on: windows-latest
-
-    env:
-      FLOQ_ISSUER: https://inni.blank.no
-      CLIENT_ID: c7d39ede18d18bee3528b7f6c1962806
-      FLOQ_API_DOMAIN: https://api-prod.floq.no
-
     if: startsWith(github.ref, 'refs/tags/')
-
     steps:
       - name: Checkout
         uses: actions/checkout@v1
@@ -59,7 +45,7 @@ jobs:
           override: true
 
       - name: Build
-        run: cargo build --workspace --release
+        run: cargo build --no-default-features --features prod --workspace --release
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -67,15 +53,9 @@ jobs:
           files: target/release/floq.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
+
   release-mac:
     runs-on: macos-latest
-
-    env:
-      FLOQ_ISSUER: https://inni.blank.no
-      CLIENT_ID: c7d39ede18d18bee3528b7f6c1962806
-      FLOQ_API_DOMAIN: https://api-prod.floq.no
-
     if: startsWith(github.ref, 'refs/tags/')
 
     steps:
@@ -91,9 +71,9 @@ jobs:
           override: true
 
       - name: Build for mac
-        run: > 
-          cargo build --workspace --release && 
-            strip target/release/floq && 
+        run: >
+          cargo build --no-default-features --features prod --workspace --release &&
+            strip target/release/floq &&
             mv target/release/floq target/release/floq_mac
 
       - name: Release

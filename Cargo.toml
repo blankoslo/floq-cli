@@ -25,3 +25,8 @@ toml = "1.1"
 
 [dev-dependencies]
 demonstrate = { version = "0.4" }
+
+[features]
+default = ["test"]
+prod = []
+test = []
