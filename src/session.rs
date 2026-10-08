@@ -54,14 +54,14 @@ async fn read_sessions_file(path: &str) -> Result<HashMap<String, FloqSession>> 
     // See: https://github.com/tokio-rs/tokio/issues/7523
     let path = path.to_string();
     task::spawn_blocking(move || -> Result<HashMap<String, FloqSession>> {
-         match std::fs::File::open(&path) {
+        match std::fs::File::open(&path) {
             Ok(mut file) => {
                 file.lock_shared()?;
                 let mut contents = String::new();
                 file.read_to_string(&mut contents)?;
                 let sessions: HashMap<String, FloqSession> = toml::from_str(&contents)?;
                 Ok(sessions)
-            },
+            }
             Err(e) => {
                 if e.kind() == std::io::ErrorKind::NotFound {
                     Ok(HashMap::default())
@@ -70,10 +70,14 @@ async fn read_sessions_file(path: &str) -> Result<HashMap<String, FloqSession>> 
                 }
             }
         }
-    }).await?
+    })
+    .await?
 }
 
-async fn modify_sessions_file(path: &str, f: impl FnOnce(&mut HashMap<String, FloqSession>) + Send + 'static) -> Result<()> {
+async fn modify_sessions_file(
+    path: &str,
+    f: impl FnOnce(&mut HashMap<String, FloqSession>) + Send + 'static,
+) -> Result<()> {
     // tokio doesn't support file locking, so we use spawn_blocking + std::fs for this operation.
     // See: https://github.com/tokio-rs/tokio/issues/7523
     let path = Path::new(&path).to_path_buf();
@@ -100,7 +104,8 @@ async fn modify_sessions_file(path: &str, f: impl FnOnce(&mut HashMap<String, Fl
         file.write_all(contents.as_bytes())?;
 
         Ok(())
-    }).await?
+    })
+    .await?
 }
 
 impl FloqSession {
@@ -115,14 +120,16 @@ impl FloqSession {
         let issuer = issuer.to_string();
         modify_sessions_file(path, move |sessions| {
             sessions.insert(issuer, session);
-        }).await
+        })
+        .await
     }
 
     async fn delete_from_file(path: &str, issuer: &str) -> Result<()> {
-        let issuer = issuer.to_string(); 
+        let issuer = issuer.to_string();
         modify_sessions_file(path, move |sessions| {
             sessions.remove(&issuer);
-        }).await
+        })
+        .await
     }
 }
 

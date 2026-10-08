@@ -5,7 +5,10 @@ use std::time::Duration;
 use anyhow::{Context, Result, anyhow};
 use oauth2::{EndpointMaybeSet, EndpointNotSet, EndpointSet, ExtraTokenFields, StandardTokenResponse, TokenType};
 use openidconnect::core::{CoreAuthenticationFlow, CoreClient};
-use openidconnect::{AdditionalClaims, GenderClaim, IdTokenFields, JweContentEncryptionAlgorithm, JwsSigningAlgorithm, TokenResponse, reqwest};
+use openidconnect::{
+    AdditionalClaims, GenderClaim, IdTokenFields, JweContentEncryptionAlgorithm, JwsSigningAlgorithm, TokenResponse,
+    reqwest,
+};
 use openidconnect::{
     AuthorizationCode, ClientId, CsrfToken, IssuerUrl, Nonce, OAuth2TokenResponse, PkceCodeChallenge, RedirectUrl,
     RefreshToken, RevocationUrl, Scope,
@@ -220,7 +223,9 @@ impl FloqAuth {
     }
 }
 
-fn to_auth_response<AC, EF, GC, JE, JS, TT>(res: StandardTokenResponse<IdTokenFields<AC, EF, GC, JE, JS>, TT>) -> AuthResponse
+fn to_auth_response<AC, EF, GC, JE, JS, TT>(
+    res: StandardTokenResponse<IdTokenFields<AC, EF, GC, JE, JS>, TT>,
+) -> AuthResponse
 where
     AC: AdditionalClaims,
     EF: ExtraTokenFields,
