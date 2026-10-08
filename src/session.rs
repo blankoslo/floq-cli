@@ -139,8 +139,12 @@ impl FloqSessionHandler {
                 Ok(Some(session))
             } else {
                 // Access token is expired or about to expire, refresh it
-                if let Some(refresh_token) = &session.refresh_token {
-                    *session = self.auth.refresh(refresh_token).await?.into();
+                if let Some(refresh_token) = session.refresh_token.take() {
+                    *session = self.auth.refresh(&refresh_token).await?.into();
+                    // refresh may return a response with no new refresh token, in which case we must retain the old one.
+                    if session.refresh_token.is_none() {
+                        session.refresh_token = Some(refresh_token);
+                    }
                     session.save_to_file(&self.file_path, self.auth.issuer()).await?;
                     Ok(Some(session))
                 } else {
