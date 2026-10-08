@@ -17,6 +17,7 @@ pub struct FloqSession {
     access_token: String,
     access_token_expires: DateTime<Utc>,
     refresh_token: Option<String>,
+    id_token: Option<String>,
     scopes: Option<Vec<String>>,
 }
 
@@ -32,6 +33,7 @@ impl From<AuthResponse> for FloqSession {
             access_token: auth_response.access_token,
             access_token_expires: Utc::now() + auth_response.expires_in.unwrap_or(Duration::from_secs(3600)),
             refresh_token: auth_response.refresh_token,
+            id_token: auth_response.id_token,
             scopes: auth_response.scopes,
         }
     }
@@ -206,8 +208,7 @@ impl FloqSessionHandler {
             self.session = FloqSession::from_file(&self.file_path, self.auth.issuer()).await?;
         }
 
-        let session = self.session.take();
-        let terminated = if let Some(session) = session {
+        let terminated = if let Some(session) = self.session.take() {
             if let Some(refresh_token) = &session.refresh_token {
                 self.auth.revoke(refresh_token).await?;
             }

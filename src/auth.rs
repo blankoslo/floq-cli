@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::{Context, Result, anyhow};
 use oauth2::{EndpointMaybeSet, EndpointNotSet, EndpointSet, ExtraTokenFields, StandardTokenResponse, TokenType};
 use openidconnect::core::{CoreAuthenticationFlow, CoreClient};
-use openidconnect::reqwest;
+use openidconnect::{AdditionalClaims, GenderClaim, IdTokenFields, JweContentEncryptionAlgorithm, JwsSigningAlgorithm, TokenResponse, reqwest};
 use openidconnect::{
     AuthorizationCode, ClientId, CsrfToken, IssuerUrl, Nonce, OAuth2TokenResponse, PkceCodeChallenge, RedirectUrl,
     RefreshToken, RevocationUrl, Scope,
@@ -34,6 +34,7 @@ struct AuthorizeResponse {
 pub struct AuthResponse {
     pub access_token: String,
     pub refresh_token: Option<String>,
+    pub id_token: Option<String>,
     pub expires_in: Option<Duration>,
     pub scopes: Option<Vec<String>>,
 }
@@ -219,9 +220,13 @@ impl FloqAuth {
     }
 }
 
-fn to_auth_response<EF, TT>(res: StandardTokenResponse<EF, TT>) -> AuthResponse
+fn to_auth_response<AC, EF, GC, JE, JS, TT>(res: StandardTokenResponse<IdTokenFields<AC, EF, GC, JE, JS>, TT>) -> AuthResponse
 where
+    AC: AdditionalClaims,
     EF: ExtraTokenFields,
+    GC: GenderClaim,
+    JE: JweContentEncryptionAlgorithm<KeyType = JS::KeyType>,
+    JS: JwsSigningAlgorithm,
     TT: TokenType,
 {
     AuthResponse {
@@ -231,5 +236,6 @@ where
         scopes: res
             .scopes()
             .map(|s| s.iter().map(|scope| scope.as_str().to_string()).collect()),
+        id_token: res.id_token().map(|t| t.to_string()),
     }
 }
