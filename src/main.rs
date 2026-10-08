@@ -3,9 +3,13 @@ use std::io;
 use anyhow::Result;
 use clap::Command;
 
+use crate::session::FloqSessionHandler;
+
+mod auth;
 mod http_client;
 mod print;
 mod project;
+mod session;
 mod time;
 mod timestamp;
 mod user;
@@ -25,12 +29,20 @@ async fn main() -> Result<()> {
         .subcommand(timestamp::history::subcommand_app().display_order(4))
         .get_matches();
 
+    let mut session_handler = FloqSessionHandler::default();
+
     match matches.subcommand() {
-        Some((project::SUBCOMMAND_NAME, sub_matches)) => project::execute(sub_matches, &mut io::stdout()).await,
-        Some((user::SUBCOMMAND_NAME, sub_matches)) => user::execute(sub_matches, &mut io::stdout()).await,
-        Some((timestamp::SUBCOMMAND_NAME, sub_matches)) => timestamp::execute(sub_matches, &mut io::stdout()).await,
+        Some((project::SUBCOMMAND_NAME, sub_matches)) => {
+            project::execute(sub_matches, &mut io::stdout(), &mut session_handler).await
+        }
+        Some((user::SUBCOMMAND_NAME, sub_matches)) => {
+            user::execute(sub_matches, &mut io::stdout(), &mut session_handler).await
+        }
+        Some((timestamp::SUBCOMMAND_NAME, sub_matches)) => {
+            timestamp::execute(sub_matches, &mut io::stdout(), &mut session_handler).await
+        }
         Some((timestamp::history::SUBCOMMAND_NAME, sub_matches)) => {
-            timestamp::history::execute(sub_matches, &mut io::stdout()).await
+            timestamp::history::execute(sub_matches, &mut io::stdout(), &mut session_handler).await
         }
         _ => unreachable!("Unknown commands should be handled by the library"),
     }

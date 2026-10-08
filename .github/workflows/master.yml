@@ -15,7 +15,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      FLOQ_DOMAIN: https://test.floq.no
+      FLOQ_ISSUER: https://test.floq.no
+      CLIENT_ID: 745f8da8135720902b0a164f59f59318
       FLOQ_API_DOMAIN: https://api-test.floq.no
 
     steps:

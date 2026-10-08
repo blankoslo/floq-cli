@@ -1,14 +1,9 @@
 use std::io::Write;
 
 use anyhow::Result;
-use chrono::{Duration, Utc};
 use clap::{ArgMatches, Command};
 
-use crate::http_client::UnauthorizedHttpClient;
-
-mod auth;
-mod config;
-mod http;
+use crate::{http_client::FloqApiClient, session::FloqSessionHandler};
 
 pub const SUBCOMMAND_NAME: &str = "bruker";
 
@@ -17,95 +12,31 @@ pub fn subcommand_app() -> Command {
         .about("Brukerhåndtering")
         .arg_required_else_help(true)
         .subcommand(Command::new("logg-inn").about("Logg inn i Floq"))
-        .subcommand(Command::new("logg-ut").about("Logg ut av Floq (sletter din lokale brukerkonfigurasjon)"))
+        .subcommand(Command::new("logg-ut").about("Logg ut av Floq (sletter din lokale sesjon)"))
 }
 
-pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Result<()> {
+pub async fn execute<T: Write + Send>(
+    matches: &ArgMatches,
+    out: &mut T,
+    session_handler: &mut FloqSessionHandler,
+) -> Result<()> {
     match matches.subcommand() {
         Some(("logg-inn", _)) => {
-            authorize_user(out).await?;
+            let session = session_handler.reauthenticate(out).await?;
+            let client = FloqApiClient::from_session(session);
+
+            let employee = client.get_logged_in_employee().await?;
+
+            writeln!(out, "Hei, {} {}!", employee.first_name, employee.last_name)?;
+            writeln!(out)?;
             Ok(())
         }
         Some(("logg-ut", _)) => {
-            config::delete_config().await?;
+            session_handler.terminate().await?;
             writeln!(out, "Ha det bra!")?;
+            writeln!(out)?;
             Ok(())
         }
         _ => unreachable!("Unknown commands should be handled by the library"),
-    }
-}
-
-pub struct User {
-    pub employee_id: u16,
-    #[allow(unused)]
-    pub email: String,
-    #[allow(unused)]
-    pub name: String,
-    pub access_token: String,
-}
-pub struct Employee {
-    id: u16,
-    email: String,
-    name: String,
-}
-
-pub async fn authorize_user<OUT: Write + Send>(out: &mut OUT) -> Result<User> {
-    let client = UnauthorizedHttpClient::new();
-    let authorized_user = client.authorize(out).await?;
-
-    let employee = client.get_logged_in_employee(&authorized_user.access_token).await?;
-
-    let config = config::UserConfig {
-        employee_id: employee.id,
-        email: employee.email.clone(),
-        name: employee.name.clone(),
-        access_token: authorized_user.access_token.clone(),
-        access_token_expires: authorized_user.expires_at,
-        refresh_token: authorized_user.refresh_token,
-    };
-    config::update_config(&config).await?;
-
-    writeln!(out, "Hei, {}!", employee.name)?;
-    writeln!(out)?;
-
-    Ok(User {
-        employee_id: employee.id,
-        email: employee.email,
-        name: employee.name,
-        access_token: authorized_user.access_token,
-    })
-}
-
-pub async fn load_user_from_config<OUT: Write + Send>(out: &mut OUT) -> Result<User> {
-    let config = config::load_config().await?;
-    let now = Utc::now().naive_utc();
-
-    match config {
-        None => {
-            writeln!(out, "Fant ingen konfigurasjon så starter løpet for autentisering nå:")?;
-            authorize_user(out).await
-        }
-        Some(mut c) if c.access_token_expires < now - Duration::minutes(1) => {
-            let client = UnauthorizedHttpClient::new();
-            let authorized_user = client.refresh_access_token(&c.refresh_token).await?;
-
-            c.access_token = authorized_user.access_token;
-            c.access_token_expires = authorized_user.expires_at;
-
-            config::update_config(&c).await?;
-
-            Ok(User {
-                employee_id: c.employee_id,
-                email: c.email,
-                name: c.name,
-                access_token: c.access_token,
-            })
-        }
-        Some(c) => Ok(User {
-            employee_id: c.employee_id,
-            email: c.email,
-            name: c.name,
-            access_token: c.access_token,
-        }),
     }
 }
