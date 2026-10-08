@@ -1,11 +1,14 @@
-use std::io::Write;
+use std::io::{Read, Seek, Write};
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::Path;
 use std::time::Duration;
 use std::{collections::HashMap, env};
 
 use anyhow::Result;
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
+use tokio::task;
 
 use crate::auth::{AuthResponse, FloqAuth};
 
@@ -44,58 +47,80 @@ fn folder_path() -> String {
     home_path() + "/.floq"
 }
 
-async fn read_sessions(path: &str) -> Result<HashMap<String, FloqSession>> {
-    match tokio::fs::read_to_string(&path).await {
-        Ok(f) => toml::from_str(&f).map_err(anyhow::Error::new),
-        Err(e) => {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                Ok(HashMap::default())
-            } else {
-                Err(anyhow::Error::new(e))
+async fn read_sessions_file(path: &str) -> Result<HashMap<String, FloqSession>> {
+    // tokio doesn't support file locking, so we use spawn_blocking + std::fs for this operation.
+    // See: https://github.com/tokio-rs/tokio/issues/7523
+    let path = path.to_string();
+    task::spawn_blocking(move || -> Result<HashMap<String, FloqSession>> {
+         match std::fs::File::open(&path) {
+            Ok(mut file) => {
+                file.lock_shared()?;
+                let mut contents = String::new();
+                file.read_to_string(&mut contents)?;
+                let sessions: HashMap<String, FloqSession> = toml::from_str(&contents)?;
+                Ok(sessions)
+            },
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    Ok(HashMap::default())
+                } else {
+                    Err(anyhow::Error::new(e))
+                }
             }
         }
-    }
+    }).await?
 }
 
-async fn save_sessions(path: &str, sessions: &HashMap<String, FloqSession>) -> Result<()> {
-    let contents = toml::to_string(&sessions)?;
-    tokio::fs::create_dir_all(folder_path()).await?;
-    let mut options = tokio::fs::OpenOptions::new();
-    options.create(true).write(true).truncate(true);
-    #[cfg(unix)]
-    options.mode(0o600);
+async fn modify_sessions_file(path: &str, f: impl FnOnce(&mut HashMap<String, FloqSession>) + Send + 'static) -> Result<()> {
+    // tokio doesn't support file locking, so we use spawn_blocking + std::fs for this operation.
+    // See: https://github.com/tokio-rs/tokio/issues/7523
+    let path = Path::new(&path).to_path_buf();
+    task::spawn_blocking(move || -> Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
 
-    let mut file = options.open(&path).await?;
-    file.write_all(contents.as_bytes()).await?;
+        let mut options = std::fs::OpenOptions::new();
+        options.create(true).read(true).write(true);
+        #[cfg(unix)]
+        options.mode(0o600);
 
-    Ok(())
+        let mut file = options.open(&path)?;
+        file.lock()?;
+
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+        let mut sessions: HashMap<String, FloqSession> = toml::from_str(&contents)?;
+        f(&mut sessions);
+        let contents = toml::to_string(&sessions)?;
+        file.set_len(0)?;
+        file.seek(std::io::SeekFrom::Start(0))?;
+        file.write_all(contents.as_bytes())?;
+
+        Ok(())
+    }).await?
 }
 
 impl FloqSession {
     async fn from_file(path: &str, issuer: &str) -> Result<Option<Self>> {
-        let sessions = read_sessions(path).await?;
+        let sessions = read_sessions_file(path).await?;
 
         Ok(sessions.get(issuer).cloned())
     }
 
     async fn save_to_file(&self, path: &str, issuer: &str) -> Result<()> {
-        let mut sessions = read_sessions(path).await?;
-
-        sessions.insert(issuer.to_string(), self.clone());
-
-        save_sessions(path, &sessions).await?;
-
-        Ok(())
+        let session = self.clone();
+        let issuer = issuer.to_string();
+        modify_sessions_file(path, move |sessions| {
+            sessions.insert(issuer, session);
+        }).await
     }
 
     async fn delete_from_file(path: &str, issuer: &str) -> Result<()> {
-        let mut sessions = read_sessions(path).await?;
-
-        sessions.remove(issuer);
-
-        save_sessions(path, &sessions).await?;
-
-        Ok(())
+        let issuer = issuer.to_string(); 
+        modify_sessions_file(path, move |sessions| {
+            sessions.remove(&issuer);
+        }).await
     }
 }
 
