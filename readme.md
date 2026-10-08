@@ -44,5 +44,5 @@ or
 
 As stated above, you must also re-authenticate yourself whenever you're changing environment since the same configuration file is used.
 
-# Configuration
-Configuration is stored at `~/.floq/user.config.toml`
+# Session credentials store
+Credentials are stored at `~/.floq/session.toml`.
