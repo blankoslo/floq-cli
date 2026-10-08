@@ -119,7 +119,7 @@ impl FloqAuth {
 
         let (tx, rx) = mpsc::sync_channel::<Result<AuthorizeResponse>>(0);
 
-        let server = rouille::Server::new("0.0.0.0:0", move |request| {
+        let server = rouille::Server::new("127.0.0.1:0", move |request| {
             match serde_urlencoded::from_str::<AuthorizeResponse>(request.raw_query_string())
                 .context("Failed to parse callback query string")
             {
