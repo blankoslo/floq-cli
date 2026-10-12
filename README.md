@@ -4,29 +4,25 @@ The Rust build tool and package manager, Cargo, is required.
 Installation instructions can be found here: https://www.rust-lang.org/learn/get-started
 
 # Compiling and running from source
-Compilation optionally uses three env variables: `FLOQ_ISSUER`, `FLOQ_FLOQ_CLIENT_ID` and `FLOQ_API_DOMAIN`.
-These are used to select what environment you would like to connect to.
+Compilation uses cargo features to select what environment you would like to connect to.
+See [src/env.rs](src/env.rs) for more details.
 
-Blank (test) [default]
+Test: (default)
 ```
-export FLOQ_ISSUER=https://test.floq.no
-export FLOQ_CLIENT_ID=745f8da8135720902b0a164f59f59318
-export FLOQ_API_DOMAIN=https://api-test.floq.no
+cargo build
 ```
 
-Blank (prod)
+Production:
 ```
-export FLOQ_ISSUER=https://inni.blank.no
-export FLOQ_CLIENT_ID=c7d39ede18d18bee3528b7f6c1962806
-export FLOQ_API_DOMAIN=https://api-prod.floq.no
+cargo build --no-default-features --features prod
 ```
 
 ## Compiling
 While developing use: `cargo build`
-When building an executable for future use, then: `cargo build --release` and copy the file at `target/release/floq` to `~/.local/bin` (or whatever folder you like store executables).
+When building an executable for future use, then: `cargo build --release` (`--no-default-features --features prod`) and copy the file at `target/release/floq` to `~/.local/bin` (or whatever folder you like store executables).
 
 ## Running
-`cargo run` lets you run the command based on project files.
+`cargo run` (`--no-default-features --features prod`) lets you run the command based on project files.
 But if you have compiled the project and moved the executable to somewhere on your PATH you can of course execute it directly like usual.
 
 `cargo run -- SUBCOMMAND [args]`
