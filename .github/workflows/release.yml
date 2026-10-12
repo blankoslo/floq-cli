@@ -19,7 +19,7 @@ jobs:
 
       - name: Build
         run: >
-          cargo build --no-default-features --features prod --workspace --release &&
+          cargo build --features prod --workspace --release &&
             strip target/release/floq &&
             mv target/release/floq target/release/floq_linux
 
@@ -45,7 +45,7 @@ jobs:
           override: true
 
       - name: Build
-        run: cargo build --no-default-features --features prod --workspace --release
+        run: cargo build --features prod --workspace --release
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -72,7 +72,7 @@ jobs:
 
       - name: Build for mac
         run: >
-          cargo build --no-default-features --features prod --workspace --release &&
+          cargo build --features prod --workspace --release &&
             strip target/release/floq &&
             mv target/release/floq target/release/floq_mac
 

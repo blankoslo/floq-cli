@@ -5,13 +5,6 @@ pub struct Env {
     pub api_domain: &'static str,
 }
 
-#[cfg(all(feature = "prod", feature = "test"))]
-compile_error!(
-    "Features `prod` and `test` are mutually exclusive, use --no-default-features to disable default (test)"
-);
-#[cfg(not(any(feature = "prod", feature = "test")))]
-compile_error!("Enable exactly one of the `prod` or `test` features");
-
 #[cfg(feature = "prod")]
 pub const ENV: Env = Env {
     issuer: "https://inni.blank.no",
@@ -19,7 +12,7 @@ pub const ENV: Env = Env {
     api_domain: "https://api-prod.floq.no",
 };
 
-#[cfg(feature = "test")]
+#[cfg(not(feature = "prod"))]
 pub const ENV: Env = Env {
     issuer: "https://test.floq.no",
     client_id: "745f8da8135720902b0a164f59f59318",
