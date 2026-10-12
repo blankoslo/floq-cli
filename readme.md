@@ -4,18 +4,20 @@ The Rust build tool and package manager, Cargo, is required.
 Installation instructions can be found here: https://www.rust-lang.org/learn/get-started
 
 # Compiling and running from source
-Compilation optionally uses two env variables: `FLOQ_DOMAIN` and `FLOQ_API_DOMAIN`.
+Compilation optionally uses three env variables: `FLOQ_ISSUER`, `FLOQ_FLOQ_CLIENT_ID` and `FLOQ_API_DOMAIN`.
 These are used to select what environment you would like to connect to.
 
 Blank (test) [default]
 ```
-export FLOQ_DOMAIN=https://test.floq.no
+export FLOQ_ISSUER=https://test.floq.no
+export FLOQ_CLIENT_ID=745f8da8135720902b0a164f59f59318
 export FLOQ_API_DOMAIN=https://api-test.floq.no
 ```
 
 Blank (prod)
 ```
-export FLOQ_DOMAIN=https://inni.blank.no
+export FLOQ_ISSUER=https://inni.blank.no
+export FLOQ_CLIENT_ID=c7d39ede18d18bee3528b7f6c1962806
 export FLOQ_API_DOMAIN=https://api-prod.floq.no
 ```
 
@@ -44,5 +46,5 @@ or
 
 As stated above, you must also re-authenticate yourself whenever you're changing environment since the same configuration file is used.
 
-# Configuration
-Configuration is stored at `~/.floq/user.config.toml`
+# Session credentials store
+Credentials are stored at `~/.floq/session.toml`.

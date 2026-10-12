@@ -1,7 +1,4 @@
-use crate::{
-    http_client::{AuthorizedHttpClient, UnauthorizedHttpClient},
-    time, user,
-};
+use crate::{http_client::FloqApiClient, session::FloqSessionHandler, time};
 
 use std::{fmt::Display, io::Write};
 
@@ -142,9 +139,13 @@ struct SetTimestampResult<'a> {
     time_diff: Duration,
 }
 
-pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Result<()> {
-    let user = user::load_user_from_config(out).await?;
-    let client = UnauthorizedHttpClient::new().into_authorized_with_user(&user);
+pub async fn execute<T: Write + Send>(
+    matches: &ArgMatches,
+    out: &mut T,
+    session_handler: &mut FloqSessionHandler,
+) -> Result<()> {
+    let session = session_handler.open(out, Duration::minutes(1)).await?;
+    let client = FloqApiClient::from_session(session);
     let project_id = matches.get_one::<String>("prosjekt").unwrap();
 
     let hours: f32 = matches.get_one::<String>("timer").unwrap().parse()?;
@@ -201,9 +202,11 @@ pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Resu
         }
     };
 
+    let employee_id = client.get_logged_in_employee().await?.id;
+
     let mut futures: FuturesUnordered<_> = dates
         .iter()
-        .map(|date| client.set_timetsamp(project_id, &time, date))
+        .map(|date| client.set_timetsamp(employee_id, project_id, &time, date))
         .collect();
     while let Some(r) = futures.next().await {
         let set_timestamp_result = r?;
@@ -229,18 +232,23 @@ pub async fn execute<T: Write + Send>(matches: &ArgMatches, out: &mut T) -> Resu
     Ok(())
 }
 
-impl AuthorizedHttpClient {
+impl FloqApiClient {
     async fn set_timetsamp<'a>(
         &self,
+        employee_id: u16,
         project_id: &'a str,
         time: &'a Duration,
         date: &'a NaiveDate,
     ) -> Result<SetTimestampResult<'a>> {
-        let current_time = self.get_timestamp_on_project_for_date(project_id, date).await?;
+        let current_time = self
+            .get_timestamp_on_project_for_date(employee_id, project_id, date)
+            .await?;
         let time_diff = *time - current_time;
 
         if !time_diff.is_zero() {
-            self.internal_set_timestamp(project_id, date, *time).await.map(|_| ())?;
+            self.internal_set_timestamp(employee_id, project_id, date, *time)
+                .await
+                .map(|_| ())?;
         }
 
         Ok(SetTimestampResult {

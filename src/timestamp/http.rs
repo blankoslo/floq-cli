@@ -1,5 +1,5 @@
 use super::history::{ProjectTimestamp, Timestamp};
-use crate::http_client::{AuthorizedHttpClient, floq_api_domain};
+use crate::http_client::{FloqApiClient, floq_api_domain};
 use crate::http_client::{HandleInvalidToken, HandleMalformedBody};
 
 use anyhow::{Context, Result, anyhow};
@@ -41,12 +41,17 @@ impl TimestampedProjectsResponse {
     }
 }
 
-impl AuthorizedHttpClient {
-    pub async fn get_timestamp_on_project_for_date(&self, project_id: &str, date: &NaiveDate) -> Result<Duration> {
+impl FloqApiClient {
+    pub async fn get_timestamp_on_project_for_date(
+        &self,
+        employee_id: u16,
+        project_id: &str,
+        date: &NaiveDate,
+    ) -> Result<Duration> {
         let url = format!(
             "{}/time_entry?select=minutes&employee=eq.{}&project=eq.{}&date=eq.{}",
             floq_api_domain(),
-            self.employee_id,
+            employee_id,
             project_id,
             date.format("%Y-%m-%d"),
         );
@@ -68,11 +73,16 @@ impl AuthorizedHttpClient {
             .unwrap_or_else(Duration::zero))
     }
 
-    pub async fn get_timestamps_for_period(&self, from: NaiveDate, to: NaiveDate) -> Result<Vec<ProjectTimestamp>> {
+    pub async fn get_timestamps_for_period(
+        &self,
+        employee_id: u16,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<ProjectTimestamp>> {
         let difference = to.signed_duration_since(from).num_days();
 
         let mut futures: FuturesUnordered<_> = (0..=difference)
-            .map(|i| self.get_timestamps_for_date(from + Duration::days(i)))
+            .map(|i| self.get_timestamps_for_date(employee_id, from + Duration::days(i)))
             .collect();
 
         let mut results: Vec<Vec<ProjectTimestamp>> = vec![];
@@ -83,13 +93,10 @@ impl AuthorizedHttpClient {
         Ok(results.into_iter().flatten().collect())
     }
 
-    pub async fn get_timestamps_for_date(&self, date: NaiveDate) -> Result<Vec<ProjectTimestamp>> {
-        let body = TimestampedProjectsRequest {
-            employee_id: self.employee_id,
-            date,
-        }
-        .serialize(serde_json::value::Serializer)?
-        .to_string();
+    pub async fn get_timestamps_for_date(&self, employee_id: u16, date: NaiveDate) -> Result<Vec<ProjectTimestamp>> {
+        let body = TimestampedProjectsRequest { employee_id, date }
+            .serialize(serde_json::value::Serializer)?
+            .to_string();
         let url = format!("{}/rpc/projects_for_employee_for_date", floq_api_domain());
 
         Ok(self
@@ -121,11 +128,17 @@ struct TimestampRequest<'a> {
     minutes: i64,
 }
 
-impl AuthorizedHttpClient {
-    pub async fn internal_set_timestamp(&self, project_id: &str, date: &NaiveDate, time: Duration) -> Result<()> {
+impl FloqApiClient {
+    pub async fn internal_set_timestamp(
+        &self,
+        employee_id: u16,
+        project_id: &str,
+        date: &NaiveDate,
+        time: Duration,
+    ) -> Result<()> {
         let body = TimestampRequest {
-            creator: self.employee_id,
-            employee: self.employee_id,
+            creator: employee_id,
+            employee: employee_id,
             project: project_id,
             date,
             minutes: time.num_minutes(),

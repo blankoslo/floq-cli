@@ -1,29 +1,38 @@
-use crate::user::User;
+use crate::session::FloqSession;
 
 use std::option_env;
 
-use anyhow::{Context, anyhow};
+use anyhow::{Context, Result, anyhow};
 use reqwest::{Client, StatusCode, header};
+use serde::Deserialize;
 
-const FLOQ_DOMAIN: Option<&str> = option_env!("FLOQ_DOMAIN");
 const FLOQ_API_DOMAIN: Option<&str> = option_env!("FLOQ_API_DOMAIN");
-
-pub fn floq_domain() -> &'static str {
-    FLOQ_DOMAIN.unwrap_or("https://test.floq.no")
-}
 
 pub fn floq_api_domain() -> &'static str {
     FLOQ_API_DOMAIN.unwrap_or("https://api-test.floq.no")
 }
 
 #[derive(Debug, Clone)]
-pub struct UnauthorizedHttpClient {
+pub struct FloqApiClient {
     pub client: reqwest::Client,
 }
 
-impl UnauthorizedHttpClient {
-    pub fn new() -> Self {
+#[derive(Debug, Clone, Deserialize)]
+pub struct Employee {
+    pub id: u16,
+    #[allow(unused)]
+    pub email: String,
+    pub first_name: String,
+    pub last_name: String,
+}
+
+impl FloqApiClient {
+    pub fn from_session(session: &FloqSession) -> Self {
         let mut headers = header::HeaderMap::new();
+        let mut auth_value = header::HeaderValue::from_str(&format!("Bearer {}", session.access_token()))
+            .expect("Ugyldig access token, vennligst logg inn på nytt");
+        auth_value.set_sensitive(true);
+        headers.insert(header::AUTHORIZATION, auth_value);
         headers.insert(
             header::CONTENT_TYPE,
             header::HeaderValue::from_static("application/json"),
@@ -38,32 +47,19 @@ impl UnauthorizedHttpClient {
         }
     }
 
-    pub fn into_authorized_with_user(self, user: &User) -> AuthorizedHttpClient {
-        let mut headers = header::HeaderMap::new();
-        let mut auth_value = header::HeaderValue::from_str(&format!("Bearer {}", user.access_token))
-            .expect("Ugyldig access token, vennligst logg inn på nytt");
-        auth_value.set_sensitive(true);
-        headers.insert(header::AUTHORIZATION, auth_value);
-        headers.insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("application/json"),
-        );
-        headers.insert(header::ACCEPT, header::HeaderValue::from_static("application/json"));
-
-        AuthorizedHttpClient {
-            client: Client::builder()
-                .default_headers(headers)
-                .build()
-                .expect("Klarte ikke å opprette HTTP klienten"),
-            employee_id: user.employee_id,
-        }
+    pub async fn get_logged_in_employee(&self) -> Result<Employee> {
+        self.client
+            .post(format!("{}/rpc/who_am_i", floq_api_domain()))
+            .send()
+            .await
+            .handle_floq_response()
+            .await
+            .context("Noe gikk galt under henting av informasjon om deg")?
+            .json::<Employee>()
+            .await
+            .handle_malformed_body()
+            .context("Klarte ikke å lese responsen fra /rpc/who_am_i")
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct AuthorizedHttpClient {
-    pub client: reqwest::Client,
-    pub employee_id: u16,
 }
 
 pub trait HandleInvalidToken {
