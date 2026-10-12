@@ -8,7 +8,7 @@ jobs:
 
     env:
       FLOQ_ISSUER: https://inni.blank.no
-      CLIENT_ID: c7d39ede18d18bee3528b7f6c1962806
+      FLOQ_CLIENT_ID: c7d39ede18d18bee3528b7f6c1962806
       FLOQ_API_DOMAIN: https://api-prod.floq.no
 
     if: startsWith(github.ref, 'refs/tags/')
@@ -42,7 +42,7 @@ jobs:
 
     env:
       FLOQ_ISSUER: https://inni.blank.no
-      CLIENT_ID: c7d39ede18d18bee3528b7f6c1962806
+      FLOQ_CLIENT_ID: c7d39ede18d18bee3528b7f6c1962806
       FLOQ_API_DOMAIN: https://api-prod.floq.no
 
     if: startsWith(github.ref, 'refs/tags/')
@@ -73,7 +73,7 @@ jobs:
 
     env:
       FLOQ_ISSUER: https://inni.blank.no
-      CLIENT_ID: c7d39ede18d18bee3528b7f6c1962806
+      FLOQ_CLIENT_ID: c7d39ede18d18bee3528b7f6c1962806
       FLOQ_API_DOMAIN: https://api-prod.floq.no
 
     if: startsWith(github.ref, 'refs/tags/')

@@ -17,14 +17,14 @@ use rouille::Response;
 use serde::{Deserialize, Serialize};
 
 const FLOQ_ISSUER: Option<&str> = option_env!("FLOQ_ISSUER");
-const CLIENT_ID: Option<&str> = option_env!("CLIENT_ID");
+const FLOQ_CLIENT_ID: Option<&str> = option_env!("FLOQ_CLIENT_ID");
 
 pub fn floq_issuer() -> &'static str {
     FLOQ_ISSUER.unwrap_or("https://test.floq.no")
 }
 
-pub fn client_id() -> &'static str {
-    CLIENT_ID.unwrap_or("745f8da8135720902b0a164f59f59318")
+pub fn floq_client_id() -> &'static str {
+    FLOQ_CLIENT_ID.unwrap_or("745f8da8135720902b0a164f59f59318")
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -82,7 +82,7 @@ pub struct FloqAuth {
 
 impl Default for FloqAuth {
     fn default() -> Self {
-        Self::new(floq_issuer().to_string(), client_id().to_string()).unwrap()
+        Self::new(floq_issuer().to_string(), floq_client_id().to_string()).unwrap()
     }
 }
 
