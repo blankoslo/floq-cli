@@ -1,85 +1,46 @@
 use super::{TimestampDate, TimestampHours};
-use crate::{http_client::FloqApiClient, print, session::FloqSessionHandler};
+use crate::{http_client::FloqApiClient, print, session::FloqSessionHandler, time};
 
 use std::{collections::HashMap, io::Write};
 
 use anyhow::Result;
 use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use clap::Args;
 
-pub const SUBCOMMAND_NAME: &str = "timehistorikk";
+#[derive(Args)]
+pub struct HistoryArgs {
+    /// Dagen du ønsker å vise timer for.
+    /// F.eks. "--dato 2021-03-01"
+    #[arg(short, long, value_parser = time::parse_date, verbatim_doc_comment)]
+    dato: Option<NaiveDate>,
 
-pub fn subcommand_app() -> Command {
-    Command::new(SUBCOMMAND_NAME)
-        .about("Vis timeføring")
-        .arg(
-            Arg::new("dato")
-                .long("dato")
-                .short('d')
-                .num_args(1)
-                .display_order(1)
-                .help("Dagen du ønsker å vise timer for.\nF.eks. \"--dato 2021-03-01\""),
-        )
-        .arg(
-            Arg::new("fra")
-                .long("fra")
-                .num_args(1)
-                .requires("til")
-                .conflicts_with("dato")
-                .display_order(2)
-                .help(
-"Første dagen å vise timer for, settes til mandag denne uken hvis utelatt.\nEr inklusiv. F.eks. \"--fra 2021-03-01\"",
-                ),
-        )
-        .arg(
-            Arg::new("til")
-                .long("til")
-                .num_args(1)
-                .requires("fra")
-                .conflicts_with("dato")
-                .display_order(3)
-                .help(
-"Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt.\nEr inklusiv. F.eks. \"--til 2021-03-05\"",
-                ),
-        )
-        .arg(
-            Arg::new("forrige-uke")
-                .long("forrige-uke")
-                .conflicts_with_all(["dato", "fra", "til", "neste-uke"])
-                .display_order(4)
-                .action(ArgAction::SetTrue)
-                .help("Vis timer ført i forrige uke."),
-        )
-        .arg(
-            Arg::new("neste-uke")
-                .long("neste-uke")
-                .conflicts_with_all(["dato", "fra", "til", "forrige-uke"])
-                .display_order(5)
-                .action(ArgAction::SetTrue)
-                .help("Vis timer ført for neste uke."),
-        )
-        .arg(
-            Arg::new("snu-tabell")
-                .long("snu-tabell")
-                .conflicts_with("ikke-snu-tabell")
-                .display_order(6)
-                .action(ArgAction::SetTrue)
-                .help(
-"Snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
-Dette blir gjort automatisk hvis det skal vises timer for mer enn én uke.",
-                ),
-        )
-        .arg(
-            Arg::new("ikke-snu-tabell")
-                .long("ikke-snu-tabell")
-                .conflicts_with("snu-tabell")
-                .display_order(7)
-                .action(ArgAction::SetTrue)
-                .help(
-"Ikke snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
-Stopper det fra å bli gjort automatisk hvis det skal vises timer for mer enn én uke.",
-                ),
-        )
+    /// Første dagen å vise timer for, settes til mandag denne uken hvis utelatt.
+    /// Er inklusiv. F.eks. "--fra 2021-03-01"
+    #[arg(long, requires = "til", conflicts_with = "dato", value_parser = time::parse_date, verbatim_doc_comment)]
+    fra: Option<NaiveDate>,
+
+    /// Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt.
+    /// Er inklusiv. F.eks. "--til 2021-03-05"
+    #[arg(long, requires = "fra", conflicts_with = "dato", value_parser = time::parse_date, verbatim_doc_comment)]
+    til: Option<NaiveDate>,
+
+    /// Vis timer ført i forrige uke
+    #[arg(long, conflicts_with_all = ["dato", "fra", "til", "neste_uke"])]
+    forrige_uke: bool,
+
+    /// Vis timer ført for neste uke
+    #[arg(long, conflicts_with_all = ["dato", "fra", "til", "forrige_uke"])]
+    neste_uke: bool,
+
+    /// Snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
+    /// Dette blir gjort automatisk hvis det skal vises timer for mer enn én uke.
+    #[arg(long, conflicts_with_all = ["ikke_snu_tabell", "dato"], verbatim_doc_comment)]
+    snu_tabell: bool,
+
+    /// Ikke snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
+    /// Stopper det fra å bli gjort automatisk hvis det skal vises timer for mer enn én uke.
+    #[arg(long, conflicts_with_all = ["snu_tabell", "dato"], verbatim_doc_comment)]
+    ikke_snu_tabell: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -127,7 +88,7 @@ impl ProjectTimestamps {
 }
 
 pub async fn execute<T: Write + Send>(
-    matches: &ArgMatches,
+    args: HistoryArgs,
     out: &mut T,
     session_handler: &mut FloqSessionHandler,
 ) -> Result<()> {
@@ -136,9 +97,7 @@ pub async fn execute<T: Write + Send>(
 
     let employee_id = client.get_logged_in_employee().await?.id;
 
-    if matches.contains_id("dato") {
-        let date = matches.get_one::<String>("dato").unwrap().parse()?;
-
+    if let Some(date) = args.dato {
         let mut timestamps = client.get_timestamps_for_date(employee_id, date).await?;
         timestamps.sort_by(|t0, t1| t0.project_id.cmp(&t1.project_id));
 
@@ -151,12 +110,12 @@ pub async fn execute<T: Write + Send>(
 
         table_maker.into_table(timestamps.as_slice()).print(out)?;
     } else {
-        let from = if let Some(from) = matches.get_one::<String>("fra") {
-            from.parse::<NaiveDate>()?
+        let from = if let Some(from) = args.fra {
+            from
         } else {
-            let base_date = if matches.get_flag("forrige-uke") {
+            let base_date = if args.forrige_uke {
                 Utc::now().date_naive() - Duration::weeks(1)
-            } else if matches.get_flag("neste-uke") {
+            } else if args.neste_uke {
                 Utc::now().date_naive() + Duration::weeks(1)
             } else {
                 // default to monday this week
@@ -167,12 +126,12 @@ pub async fn execute<T: Write + Send>(
             base_date - Duration::days(days_from_monday)
         };
 
-        let to = if let Some(to) = matches.get_one::<String>("til") {
-            to.parse::<NaiveDate>()?
+        let to = if let Some(to) = args.til {
+            to
         } else {
-            let base_date = if matches.get_flag("forrige-uke") {
+            let base_date = if args.forrige_uke {
                 Utc::now().date_naive() - Duration::weeks(1)
-            } else if matches.get_flag("neste-uke") {
+            } else if args.neste_uke {
                 Utc::now().date_naive() + Duration::weeks(1)
             } else {
                 // default to monday this week
@@ -184,8 +143,8 @@ pub async fn execute<T: Write + Send>(
         };
 
         // only one of these two can be true, if none are then we let the number of days in period decide
-        let turn_table = matches.get_flag("snu-tabell");
-        let dont_turn_table = matches.get_flag("ikke-snu-tabell");
+        let turn_table = args.snu_tabell;
+        let dont_turn_table = args.ikke_snu_tabell;
         if turn_table || (!dont_turn_table && to - from > Duration::days(6)) {
             // auto transpose if more than one week
             let mut timestamps = client.get_timestamps_for_period(employee_id, from, to).await?;

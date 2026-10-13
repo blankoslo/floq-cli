@@ -1,7 +1,7 @@
 use std::io;
 
 use anyhow::Result;
-use clap::Command;
+use clap::{Parser, Subcommand};
 
 use crate::session::FloqSessionHandler;
 
@@ -15,36 +15,40 @@ mod time;
 mod timestamp;
 mod user;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Floq i din lokale terminal
+#[derive(Parser)]
+#[command(name = "floq", version, author = "Rust-gjengen", arg_required_else_help = true)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Brukerhåndtering
+    #[command(name = "bruker", subcommand)]
+    User(user::UserCommand),
+    /// Vis prosjekter
+    #[command(name = "prosjekter")]
+    Projects(project::ProjectArgs),
+    /// Før timer på et prosjekt
+    #[command(name = "timeføring")]
+    Timestamp(timestamp::TimestampArgs),
+    /// Vis timeføring
+    #[command(name = "timehistorikk")]
+    History(timestamp::history::HistoryArgs),
+}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    let matches = Command::new("floq")
-        .about("Floq i din lokale terminal")
-        .version(VERSION)
-        .author("Rust-gjengen")
-        .arg_required_else_help(true)
-        .subcommand(user::subcommand_app().display_order(1))
-        .subcommand(project::subcommand_app().display_order(2))
-        .subcommand(timestamp::subcommand_app().display_order(3))
-        .subcommand(timestamp::history::subcommand_app().display_order(4))
-        .get_matches();
+    let cli = Cli::parse();
 
     let mut session_handler = FloqSessionHandler::default();
 
-    match matches.subcommand() {
-        Some((project::SUBCOMMAND_NAME, sub_matches)) => {
-            project::execute(sub_matches, &mut io::stdout(), &mut session_handler).await
-        }
-        Some((user::SUBCOMMAND_NAME, sub_matches)) => {
-            user::execute(sub_matches, &mut io::stdout(), &mut session_handler).await
-        }
-        Some((timestamp::SUBCOMMAND_NAME, sub_matches)) => {
-            timestamp::execute(sub_matches, &mut io::stdout(), &mut session_handler).await
-        }
-        Some((timestamp::history::SUBCOMMAND_NAME, sub_matches)) => {
-            timestamp::history::execute(sub_matches, &mut io::stdout(), &mut session_handler).await
-        }
-        _ => unreachable!("Unknown commands should be handled by the library"),
+    match cli.command {
+        Commands::User(command) => user::execute(command, &mut io::stdout(), &mut session_handler).await,
+        Commands::Projects(args) => project::execute(args, &mut io::stdout(), &mut session_handler).await,
+        Commands::Timestamp(args) => timestamp::execute(args, &mut io::stdout(), &mut session_handler).await,
+        Commands::History(args) => timestamp::history::execute(args, &mut io::stdout(), &mut session_handler).await,
     }
 }

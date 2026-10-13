@@ -2,107 +2,123 @@ use crate::{http_client::FloqApiClient, session::FloqSessionHandler, time};
 
 use std::{fmt::Display, io::Write};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use clap::Args;
 use futures::{StreamExt, stream::FuturesUnordered};
 
 pub mod history;
 mod http;
 
-pub const SUBCOMMAND_NAME: &str = "timeføring";
+#[derive(Args)]
+pub struct TimestampArgs {
+    /// Prosjektet du ønsker å føre timer på
+    prosjekt: String,
 
-pub fn subcommand_app() -> Command {
-    let days = time::Weekdays::all();
+    /// Antall timer du ønsker å føre, settes til "7.5" hvis utelatt
+    #[arg(short, long, default_value_t = 7.5, hide_default_value = true)]
+    timer: f32,
 
-    let day_args: Vec<Arg> = days
-        .iter()
-        .map(|day| {
-            let weekday = day.get_weekday();
-            let conflicts: Vec<&str> = days
-                .iter()
-                .filter(|&d| d != day)
-                .map(|d| d.get_weekday().full_name)
-                .collect();
+    /// Dagen det skal føres timer på, settes til i dag hvis utelatt.
+    /// F.eks. "--dato 2021-03-01"
+    #[arg(short, long, value_parser = time::parse_date, verbatim_doc_comment)]
+    dato: Option<NaiveDate>,
 
-            Arg::new(weekday.full_name)
-                .long(weekday.full_name)
-                .visible_alias(weekday.short_name)
-                .conflicts_with("dato")
-                .conflicts_with_all(&conflicts)
-                .action(ArgAction::SetTrue)
-                .help("Ukedag det skal føres timer på, relativt til dagens dato")
-                .display_order(day.as_chrono_weekday().num_days_from_monday() as usize + 1)
-        })
-        .collect();
+    /// Brukes samme med --til for å føre timer i en periode, er inklusiv.
+    /// F.eks. "--fra 2021-03-01"
+    #[arg(long, requires = "til", conflicts_with = "dato", value_parser = time::parse_date, verbatim_doc_comment)]
+    fra: Option<NaiveDate>,
 
-    Command::new(SUBCOMMAND_NAME)
-        .about("Før timer på et prosjekt")
-        .subcommand_negates_reqs(true)
-        .arg(
-            Arg::new("prosjekt")
-                .help("Prosjektet du ønsker å føre timer på")
-                .required(true)
-                .index(1),
-        )
-        .arg(
-            Arg::new("timer")
-                .long("timer")
-                .short('t')
-                .num_args(1)
-                .default_value("7.5")
-                .hide_default_value(true)
-                .help("Antall timer du ønsker å føre, settes til \"7.5\" hvis utelatt"),
-        )
-        .arg(Arg::new("dato").long("dato").short('d').num_args(1).help(
-            "Dagen det skal føres timer på, settes til i dag hvis utelatt.\n\
-                    F.eks. \"--dato 2021-03-01\"",
-        ))
-        .arg(
-            Arg::new("fra")
-                .long("fra")
-                .num_args(1)
-                .requires("til")
-                .conflicts_with("dato")
-                .help(
-                    "Brukes samme med --til for å føre timer i en periode, er inklusiv.\n\
-                    F.eks. \"--fra 2021-03-01\" ",
-                ),
-        )
-        .arg(
-            Arg::new("til")
-                .long("til")
-                .num_args(1)
-                .requires("fra")
-                .conflicts_with("dato")
-                .help(
-                    "Brukes samme med --fra for å føre timer i en periode, er inklusiv.\n\
-                    F.eks. \"--til 2021-03-05\"",
-                ),
-        )
-        .arg(
-            Arg::new("forrige-uke")
-                .long("forrige-uke")
-                .conflicts_with_all(["neste-uke", "dato", "fra", "til"])
-                .display_order(8) // one more than --søndag
-                .action(ArgAction::SetTrue)
-                .help(
-                    "Setter relativ dato til forrige uke. \
-                    Brukes sammen med ukedagene til å velge en dag i forrige uke",
-                ),
-        )
-        .arg(
-            Arg::new("neste-uke")
-                .long("neste-uke")
-                .conflicts_with_all(["forrige-uke", "dato", "fra", "til"])
-                .display_order(9) // one more than --forrige-uke
-                .action(ArgAction::SetTrue)
-                .help(
-                    "Setter relativ dato til neste uke. \
-                    Brukes sammen med ukedagene til å velge en dag i neste uke",
-                ),
-        )
-        .args(day_args)
+    /// Brukes samme med --fra for å føre timer i en periode, er inklusiv.
+    /// F.eks. "--til 2021-03-05"
+    #[arg(long, requires = "fra", conflicts_with = "dato", value_parser = time::parse_date, verbatim_doc_comment)]
+    til: Option<NaiveDate>,
+
+    /// Ukedag det skal føres timer på, relativt til dagens dato. Kan kombineres med andre ukedager
+    #[arg(long, visible_alias = "man")]
+    mandag: bool,
+
+    /// Ukedag det skal føres timer på, relativt til dagens dato. Kan kombineres med andre ukedager
+    #[arg(long, visible_alias = "tir")]
+    tirsdag: bool,
+
+    /// Ukedag det skal føres timer på, relativt til dagens dato. Kan kombineres med andre ukedager
+    #[arg(long, visible_alias = "ons")]
+    onsdag: bool,
+
+    /// Ukedag det skal føres timer på, relativt til dagens dato. Kan kombineres med andre ukedager
+    #[arg(long, visible_alias = "tor")]
+    torsdag: bool,
+
+    /// Ukedag det skal føres timer på, relativt til dagens dato. Kan kombineres med andre ukedager
+    #[arg(long, visible_alias = "fre")]
+    fredag: bool,
+
+    /// Ukedag det skal føres timer på, relativt til dagens dato. Kan kombineres med andre ukedager
+    #[arg(long, visible_alias = "lør")]
+    lørdag: bool,
+
+    /// Ukedag det skal føres timer på, relativt til dagens dato. Kan kombineres med andre ukedager
+    #[arg(long, visible_alias = "søn")]
+    søndag: bool,
+
+    /// Setter relativ dato til forrige uke. Brukes sammen med ukedagene til å velge dager i forrige uke
+    #[arg(long, conflicts_with_all = ["neste_uke", "dato", "fra", "til"])]
+    forrige_uke: bool,
+
+    /// Setter relativ dato til neste uke. Brukes sammen med ukedagene til å velge dager i neste uke
+    #[arg(long, conflicts_with_all = ["forrige_uke", "dato", "fra", "til"])]
+    neste_uke: bool,
+}
+
+impl TimestampArgs {
+    fn selected_weekdays(&self) -> Vec<time::Weekdays> {
+        // same order as `time::Weekdays::all()`
+        let flags = [
+            self.mandag,
+            self.tirsdag,
+            self.onsdag,
+            self.torsdag,
+            self.fredag,
+            self.lørdag,
+            self.søndag,
+        ];
+
+        time::Weekdays::all()
+            .into_iter()
+            .zip(flags)
+            .filter_map(|(day, is_selected)| is_selected.then_some(day))
+            .collect()
+    }
+
+    /// --dato, --fra/--til and the weekday flags are different ways of selecting days, so they can't be combined.
+    /// Weekday conflicts are checked here, the rest are handled by clap.
+    fn validate(&self) -> Result<()> {
+        let weekdays: Vec<&str> = self
+            .selected_weekdays()
+            .iter()
+            .map(|day| day.get_weekday().full_name)
+            .collect();
+
+        let Some(weekday) = weekdays.first() else {
+            if self.forrige_uke || self.neste_uke {
+                let flag = if self.forrige_uke { "forrige-uke" } else { "neste-uke" };
+                return Err(anyhow!(
+                    "--{flag} må brukes sammen med en ukedag, f.eks. \"--{flag} --mandag\""
+                ));
+            }
+            return Ok(());
+        };
+
+        if self.dato.is_some() {
+            return Err(anyhow!("--{weekday} kan ikke brukes sammen med --dato"));
+        }
+        if self.fra.is_some() || self.til.is_some() {
+            return Err(anyhow!("--{weekday} kan ikke brukes sammen med --fra/--til"));
+        }
+
+        Ok(())
+    }
 }
 
 pub struct TimestampHours<'a>(&'a Duration);
@@ -140,66 +156,45 @@ struct SetTimestampResult<'a> {
 }
 
 pub async fn execute<T: Write + Send>(
-    matches: &ArgMatches,
+    args: TimestampArgs,
     out: &mut T,
     session_handler: &mut FloqSessionHandler,
 ) -> Result<()> {
+    args.validate()?;
+
     let session = session_handler.open(out, Duration::minutes(1)).await?;
     let client = FloqApiClient::from_session(session);
-    let project_id = matches.get_one::<String>("prosjekt").unwrap();
+    let project_id = args.prosjekt.as_str();
 
-    let hours: f32 = matches.get_one::<String>("timer").unwrap().parse()?;
+    let hours = args.timer;
     let time = Duration::minutes((hours * 60.0) as i64);
     if time > Duration::days(1) {
         return Err(anyhow!("Det er ikke mulig å føre {} timer på én dag", hours));
     }
 
-    let dates = if matches.contains_id("fra") {
-        let from: NaiveDate = matches
-            .get_one::<String>("fra")
-            .unwrap()
-            .parse::<NaiveDate>()
-            .context("Fra dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")?;
-        let to: NaiveDate = matches
-            .get_one::<String>("til")
-            .unwrap()
-            .parse::<NaiveDate>()
-            .context("Til dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")?;
-
+    let weekdays = args.selected_weekdays();
+    let dates = if let (Some(from), Some(to)) = (args.fra, args.til) {
         from.iter_days().take_while(|d| d <= &to).collect()
-    } else if matches.contains_id("dato") {
-        let date: NaiveDate = matches
-            .get_one::<String>("dato")
-            .map(|date| {
-                date.parse::<NaiveDate>()
-                    .context("Dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01")
-            })
-            .unwrap_or_else(|| Ok(Utc::now().date_naive()))?;
-
+    } else if let Some(date) = args.dato {
         vec![date]
-    } else {
-        let weekdays = time::Weekdays::all();
-        let weekday = weekdays.iter().find(|w| matches.get_flag(w.get_weekday().full_name));
-
-        if let Some(weekday) = weekday {
-            let today = Utc::now().date_naive();
-            let base_date = if matches.get_flag("forrige-uke") {
-                today - Duration::weeks(1)
-            } else if matches.get_flag("neste-uke") {
-                today + Duration::weeks(1)
-            } else {
-                today
-            };
-
-            let days_from_monday = base_date.weekday().num_days_from_monday();
-            let days_until_date = weekday.as_chrono_weekday().num_days_from_monday() as i64 - days_from_monday as i64;
-            let date = base_date + Duration::days(days_until_date);
-
-            vec![date]
+    } else if !weekdays.is_empty() {
+        let today = Utc::now().date_naive();
+        let base_date = if args.forrige_uke {
+            today - Duration::weeks(1)
+        } else if args.neste_uke {
+            today + Duration::weeks(1)
         } else {
-            // default to todays date
-            vec![Utc::now().date_naive()]
-        }
+            today
+        };
+        let monday = base_date - Duration::days(base_date.weekday().num_days_from_monday() as i64);
+
+        weekdays
+            .iter()
+            .map(|weekday| monday + Duration::days(weekday.as_chrono_weekday().num_days_from_monday() as i64))
+            .collect()
+    } else {
+        // default to todays date
+        vec![Utc::now().date_naive()]
     };
 
     let employee_id = client.get_logged_in_employee().await?.id;
