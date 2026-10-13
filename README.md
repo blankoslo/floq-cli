@@ -14,15 +14,15 @@ cargo build
 
 Production:
 ```
-cargo build --no-default-features --features prod
+cargo build --features prod
 ```
 
 ## Compiling
 While developing use: `cargo build`
-When building an executable for future use, then: `cargo build --release` (`--no-default-features --features prod`) and copy the file at `target/release/floq` to `~/.local/bin` (or whatever folder you like store executables).
+When building an executable for future use, then: `cargo build --release` (`--features prod`) and copy the file at `target/release/floq` to `~/.local/bin` (or whatever folder you like store executables).
 
 ## Running
-`cargo run` (`--no-default-features --features prod`) lets you run the command based on project files.
+`cargo run` (`--features prod`) lets you run the command based on project files.
 But if you have compiled the project and moved the executable to somewhere on your PATH you can of course execute it directly like usual.
 
 `cargo run -- SUBCOMMAND [args]`
