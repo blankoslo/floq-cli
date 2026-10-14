@@ -102,3 +102,8 @@ impl<D: Datelike> From<&D> for Weekdays {
         }
     }
 }
+
+pub fn parse_date(date: &str) -> Result<chrono::NaiveDate, String> {
+    date.parse()
+        .map_err(|_| "Dato må være i formatet YYYY-MM-DD, f.eks. 2021-03-01".to_string())
+}

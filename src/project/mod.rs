@@ -6,45 +6,27 @@ use crate::session::FloqSessionHandler;
 use std::io::Write;
 
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use clap::{Arg, ArgMatches, Command};
+use clap::Args;
 use serde::{Deserialize, Serialize};
 
 use anyhow::{Context, Result};
 
-pub const SUBCOMMAND_NAME: &str = "prosjekter";
-
-pub fn subcommand_app() -> Command {
-    Command::new(SUBCOMMAND_NAME)
-        .about("Vis prosjekter")
-        .arg(
-            Arg::new("mine")
-                .long("mine")
-                .short('m')
-                .default_value("true")
-                .conflicts_with("alle")
-                .action(clap::ArgAction::SetTrue)
-                .help("Vis prosjekter du har ført timer på de siste to ukene"),
-        )
-        .arg(
-            Arg::new("alle")
-                .long("alle")
-                .short('a')
-                .conflicts_with("mine")
-                .action(clap::ArgAction::SetTrue)
-                .help("Vis alle prosjekter"),
-        )
+#[derive(Args)]
+pub struct ProjectArgs {
+    /// Vis alle prosjekter, i stedet for kun de du har ført timer på de siste to ukene
+    #[arg(short, long)]
+    alle: bool,
 }
 
 pub async fn execute<T: Write + Send>(
-    matches: &ArgMatches,
+    args: ProjectArgs,
     out: &mut T,
     session_handler: &mut FloqSessionHandler,
 ) -> Result<()> {
     let session = session_handler.open(out, Duration::minutes(1)).await?;
     let client = FloqApiClient::from_session(session);
 
-    let all = matches.get_flag("alle");
-    let mut projects = if all {
+    let mut projects = if args.alle {
         client.get_projects().await?
     } else {
         let employee_id = client.get_logged_in_employee().await?.id;
