@@ -13,12 +13,7 @@ use anyhow::{Context, Result};
 
 #[derive(Args)]
 pub struct ProjectArgs {
-    /// Vis prosjekter du har ført timer på de siste to ukene
-    #[allow(unused)] // default if not --alle
-    #[arg(short, long, conflicts_with = "alle")]
-    mine: bool,
-
-    /// Vis alle prosjekter
+    /// Vis alle prosjekter, i stedet for kun de du har ført timer på de siste to ukene
     #[arg(short, long)]
     alle: bool,
 }
