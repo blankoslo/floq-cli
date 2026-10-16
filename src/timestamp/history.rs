@@ -37,7 +37,7 @@ pub async fn execute<T: Write + Send>(
     let today = Utc::now().date_naive();
 
     let (dates, layout, force_show_weekend_dates, show_total_per_project, week) =
-        match DaySelection::from_args(args.dato)? {
+        match args.dato.to_day_selection()? {
             DaySelection::None => {
                 // No week or days provided. Default to showing the current week
                 let week = RelativeWeek::Current.resolve(today);

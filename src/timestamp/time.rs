@@ -127,6 +127,90 @@ pub struct DaySelectionArgs {
     uke: Option<WeekArg>,
 }
 
+impl DaySelectionArgs {
+    pub fn to_day_selection(&self) -> Result<DaySelection> {
+        let mut dag = self.dag.iter();
+        if let Some(first) = dag.next() {
+            return Ok(match first {
+                DayArg::Weekday(first) => {
+                    let mut days = Vec::with_capacity(1 + dag.len());
+                    days.push(*first);
+                    for d in dag {
+                        if let DayArg::Weekday(d) = d {
+                            if days.contains(d) {
+                                return Err(anyhow!("Hver --dag må være unik ({} forekommer flere ganger)", d))
+                            }
+                            days.push(*d);
+                        } else {
+                            return Err(anyhow!("--dag må være alle ukedager eller alle datoer"));
+                        }
+                    }
+                    DaySelection::Weekdays {
+                        week: RelativeWeek::from_arg(self.uke),
+                        days: Some(Days::Specific(days)),
+                    }
+                }
+                DayArg::Date(first) => {
+                    let mut days = Vec::with_capacity(1 + dag.len());
+                    days.push(*first);
+                    for d in dag {
+                        if let DayArg::Date(d) = d {
+                            if days.contains(d) {
+                                return Err(anyhow!("Hver --dag må være unik ({} forekommer flere ganger)", d.format("%Y-%m-%d")))
+                            }
+                            days.push(*d);
+                        } else {
+                            return Err(anyhow!("--dag må være alle ukedager eller alle datoer"));
+                        }
+                    }
+                    if self.uke.is_some() {
+                        return Err(anyhow!("--uke kan kun brukes sammen med ukedager"));
+                    }
+                    DaySelection::Dates(Days::Specific(days))
+                }
+            });
+        }
+
+        match (self.fra, self.til) {
+            (Some(fra), Some(til)) => match (fra, til) {
+                (DayArg::Weekday(fra), DayArg::Weekday(til)) => {
+                    if fra > til {
+                        return Err(anyhow!("--fra kan ikke være etter --til"));
+                    }
+                    Ok(DaySelection::Weekdays {
+                        week: RelativeWeek::from_arg(self.uke),
+                        days: Some(Days::RangeInclusive(RangeInclusive { start: fra, last: til })),
+                    })
+                }
+                (DayArg::Date(fra), DayArg::Date(til)) => {
+                    if fra > til {
+                        return Err(anyhow!("--fra kan ikke være etter --til"));
+                    }
+                    if self.uke.is_some() {
+                        return Err(anyhow!("--uke kan kun brukes sammen med ukedager"));
+                    }
+                    Ok(DaySelection::Dates(Days::RangeInclusive(RangeInclusive {
+                        start: fra,
+                        last: til,
+                    })))
+                }
+                _ => Err(anyhow!(
+                    "--fra og --til må enten begge være ukedager eller begge være datoer"
+                )),
+            },
+            (None, None) => Ok(if let Some(uke) = self.uke {
+                DaySelection::Weekdays {
+                    week: RelativeWeek::from_arg(Some(uke)),
+                    days: None,
+                }
+            } else {
+                DaySelection::None
+            }),
+            _ => Err(anyhow!("--fra og --til må settes sammen")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Week(chrono::IsoWeek);
 
@@ -315,90 +399,6 @@ pub enum DaySelection {
     },
     /// Specific naive dates.
     Dates(Days<NaiveDate>),
-}
-
-impl DaySelection {
-    pub fn from_args(args: DaySelectionArgs) -> Result<DaySelection> {
-        let mut dag = args.dag.into_iter();
-        if let Some(first) = dag.next() {
-            return Ok(match first {
-                DayArg::Weekday(first) => {
-                    let mut days = Vec::with_capacity(1 + dag.len());
-                    days.push(first);
-                    for d in dag {
-                        if let DayArg::Weekday(d) = d {
-                            if days.contains(&d) {
-                                return Err(anyhow!("Hver --dag må være unik ({} forekommer flere ganger)", d))
-                            }
-                            days.push(d);
-                        } else {
-                            return Err(anyhow!("--dag må være alle ukedager eller alle datoer"));
-                        }
-                    }
-                    Self::Weekdays {
-                        week: RelativeWeek::from_arg(args.uke),
-                        days: Some(Days::Specific(days)),
-                    }
-                }
-                DayArg::Date(first) => {
-                    let mut days = Vec::with_capacity(1 + dag.len());
-                    days.push(first);
-                    for d in dag {
-                        if let DayArg::Date(d) = d {
-                            if days.contains(&d) {
-                                return Err(anyhow!("Hver --dag må være unik ({} forekommer flere ganger)", d.format("%Y-%m-%d")))
-                            }
-                            days.push(d);
-                        } else {
-                            return Err(anyhow!("--dag må være alle ukedager eller alle datoer"));
-                        }
-                    }
-                    if args.uke.is_some() {
-                        return Err(anyhow!("--uke kan kun brukes sammen med ukedager"));
-                    }
-                    Self::Dates(Days::Specific(days))
-                }
-            });
-        }
-
-        match (args.fra, args.til) {
-            (Some(fra), Some(til)) => match (fra, til) {
-                (DayArg::Weekday(fra), DayArg::Weekday(til)) => {
-                    if fra > til {
-                        return Err(anyhow!("--fra kan ikke være etter --til"));
-                    }
-                    Ok(Self::Weekdays {
-                        week: RelativeWeek::from_arg(args.uke),
-                        days: Some(Days::RangeInclusive(RangeInclusive { start: fra, last: til })),
-                    })
-                }
-                (DayArg::Date(fra), DayArg::Date(til)) => {
-                    if fra > til {
-                        return Err(anyhow!("--fra kan ikke være etter --til"));
-                    }
-                    if args.uke.is_some() {
-                        return Err(anyhow!("--uke kan kun brukes sammen med ukedager"));
-                    }
-                    Ok(Self::Dates(Days::RangeInclusive(RangeInclusive {
-                        start: fra,
-                        last: til,
-                    })))
-                }
-                _ => Err(anyhow!(
-                    "--fra og --til må enten begge være ukedager eller begge være datoer"
-                )),
-            },
-            (None, None) => Ok(if let Some(uke) = args.uke {
-                Self::Weekdays {
-                    week: RelativeWeek::from_arg(Some(uke)),
-                    days: None,
-                }
-            } else {
-                Self::None
-            }),
-            _ => Err(anyhow!("--fra og --til må settes sammen")),
-        }
-    }
 }
 
 pub struct Hours<T: Borrow<chrono::Duration>>(pub T);

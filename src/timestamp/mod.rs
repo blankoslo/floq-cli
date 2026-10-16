@@ -37,7 +37,7 @@ pub async fn execute<T: Write + Send>(
     }
 
     let today = Utc::now().date_naive();
-    let dates: Vec<(String, chrono::NaiveDate)> = match DaySelection::from_args(args.dato)? {
+    let dates: Vec<(String, chrono::NaiveDate)> = match args.dato.to_day_selection()? {
         DaySelection::None => {
             // Default to today if no date selection is made
             vec![(today.to_string(), today)]
