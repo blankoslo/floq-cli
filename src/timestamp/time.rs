@@ -138,7 +138,7 @@ impl DaySelectionArgs {
                     for d in dag {
                         if let DayArg::Weekday(d) = d {
                             if days.contains(d) {
-                                return Err(anyhow!("Hver --dag må være unik ({} forekommer flere ganger)", d))
+                                return Err(anyhow!("Hver --dag må være unik ({} forekommer flere ganger)", d));
                             }
                             days.push(*d);
                         } else {
@@ -156,7 +156,10 @@ impl DaySelectionArgs {
                     for d in dag {
                         if let DayArg::Date(d) = d {
                             if days.contains(d) {
-                                return Err(anyhow!("Hver --dag må være unik ({} forekommer flere ganger)", d.format("%Y-%m-%d")))
+                                return Err(anyhow!(
+                                    "Hver --dag må være unik ({} forekommer flere ganger)",
+                                    d.format("%Y-%m-%d")
+                                ));
                             }
                             days.push(*d);
                         } else {

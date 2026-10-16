@@ -36,74 +36,67 @@ pub async fn execute<T: Write + Send>(
 ) -> Result<()> {
     let today = Utc::now().date_naive();
 
-    let (dates, layout, force_show_weekend_dates, show_total_per_project, week) =
-        match args.dato.to_day_selection()? {
-            DaySelection::None => {
-                // No week or days provided. Default to showing the current week
-                let week = RelativeWeek::Current.resolve(today);
-                let days = Days::whole_week();
+    let (dates, layout, force_show_weekend_dates, show_total_per_project, week) = match args.dato.to_day_selection()? {
+        DaySelection::None => {
+            // No week or days provided. Default to showing the current week
+            let week = RelativeWeek::Current.resolve(today);
+            let days = Days::whole_week();
 
-                let force_show_weekend_dates = false;
-                let show_total_per_project = true;
-                let dates = days
-                    .into_iter()
-                    .map(|weekday| (weekday.to_string(), week.resolve_weekday(weekday)))
-                    .collect::<Vec<_>>();
-                let layout = args.layout.unwrap_or(TableLayout::PerProsjekt);
+            let force_show_weekend_dates = false;
+            let show_total_per_project = true;
+            let dates = days
+                .into_iter()
+                .map(|weekday| (weekday.to_string(), week.resolve_weekday(weekday)))
+                .collect::<Vec<_>>();
+            let layout = args.layout.unwrap_or(TableLayout::PerProsjekt);
 
-                (
-                    dates,
-                    layout,
-                    force_show_weekend_dates,
-                    show_total_per_project,
-                    Some(week),
-                )
-            }
-            DaySelection::Weekdays { week, days } => {
-                let week = week.resolve(today);
-                let (force_show_weekend_dates, days) = match days {
-                    Some(days) => (
-                        // Always show weekend dates if weekend days were explicitly selected
-                        days.has_weekend(),
-                        days,
-                    ),
-                    None => (false, Days::whole_week()),
-                };
+            (
+                dates,
+                layout,
+                force_show_weekend_dates,
+                show_total_per_project,
+                Some(week),
+            )
+        }
+        DaySelection::Weekdays { week, days } => {
+            let week = week.resolve(today);
+            let (force_show_weekend_dates, days) = match days {
+                Some(days) => (
+                    // Always show weekend dates if weekend days were explicitly selected
+                    days.has_weekend(),
+                    days,
+                ),
+                None => (false, Days::whole_week()),
+            };
 
-                let show_total_per_project = true;
-                let dates = days
-                    .into_iter()
-                    .map(|weekday| (weekday.to_string(), week.resolve_weekday(weekday)))
-                    .collect::<Vec<_>>();
-                let layout = args.layout.unwrap_or(TableLayout::PerProsjekt);
+            let show_total_per_project = true;
+            let dates = days
+                .into_iter()
+                .map(|weekday| (weekday.to_string(), week.resolve_weekday(weekday)))
+                .collect::<Vec<_>>();
+            let layout = args.layout.unwrap_or(TableLayout::PerProsjekt);
 
-                (
-                    dates,
-                    layout,
-                    force_show_weekend_dates,
-                    show_total_per_project,
-                    Some(week),
-                )
-            }
-            DaySelection::Dates(days) => {
-                let force_show_weekend_dates = false;
-                // Showing total is not really necessary for single dates
-                let show_total_per_project = days.is_range();
-                let dates = days
-                    .into_iter()
-                    .map(|date| (date.format("%Y-%m-%d").to_string(), date))
-                    .collect::<Vec<_>>();
-                let layout = args.layout.unwrap_or(TableLayout::PerDag);
+            (
+                dates,
+                layout,
+                force_show_weekend_dates,
+                show_total_per_project,
+                Some(week),
+            )
+        }
+        DaySelection::Dates(days) => {
+            let force_show_weekend_dates = false;
+            // Showing total is not really necessary for single dates
+            let show_total_per_project = days.is_range();
+            let dates = days
+                .into_iter()
+                .map(|date| (date.format("%Y-%m-%d").to_string(), date))
+                .collect::<Vec<_>>();
+            let layout = args.layout.unwrap_or(TableLayout::PerDag);
 
-                (
-                    dates,
-                    layout,
-                    force_show_weekend_dates,
-                    show_total_per_project,
-                    None,
-                )
-            }
-        };
+            (dates, layout, force_show_weekend_dates, show_total_per_project, None)
+        }
+    };
 
     let session = session_handler.open(out, Duration::minutes(1)).await?;
     let client = FloqApiClient::from_session(session);
