@@ -90,12 +90,12 @@ struct TimestampRequest<'a> {
 }
 
 impl FloqApiClient {
-    pub async fn internal_set_timestamp(
+    pub async fn set_timestamp(
         &self,
         employee_id: u16,
         project_id: &str,
         date: &NaiveDate,
-        time: Duration,
+        time: &Duration,
     ) -> Result<()> {
         let body = TimestampRequest {
             creator: employee_id,
@@ -130,5 +130,19 @@ impl FloqApiClient {
                 sc
             )),
         }
+    }
+
+    pub async fn set_timestamp_and_get_previous(
+        &self,
+        employee_id: u16,
+        project_id: &str,
+        date: &NaiveDate,
+        time: &Duration,
+    ) -> Result<Duration> {
+        let previous_time = self
+            .get_timestamp_on_project_for_date(employee_id, project_id, date)
+            .await?;
+        self.set_timestamp(employee_id, project_id, date, time).await?;
+        Ok(previous_time)
     }
 }

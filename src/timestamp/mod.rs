@@ -3,7 +3,7 @@ use crate::{http_client::FloqApiClient, session::FloqSessionHandler, timestamp::
 use std::io::Write;
 
 use anyhow::{Result, anyhow};
-use chrono::{Duration, NaiveDate, Utc};
+use chrono::{Duration, Utc};
 use clap::Args;
 use futures::{StreamExt, stream::FuturesOrdered};
 
@@ -22,10 +22,6 @@ pub struct TimestampArgs {
 
     #[command(flatten)]
     dato: time::DaySelectionArgs,
-}
-
-struct SetTimestampResult {
-    previous_time: Duration,
 }
 
 pub async fn execute<T: Write + Send>(
@@ -70,39 +66,26 @@ pub async fn execute<T: Write + Send>(
 
     let mut futures: FuturesOrdered<_> = dates
         .into_iter()
-        .map(async |(label, date)| (label, client.set_timestamp(employee_id, project_id, &time, &date).await))
+        .map(async |(label, date)| {
+            (
+                label,
+                client
+                    .set_timestamp_and_get_previous(employee_id, project_id, &date, &time)
+                    .await,
+            )
+        })
         .collect();
     while let Some((label, r)) = futures.next().await {
-        let set_timestamp_result = r?;
+        let previous_time = r?;
 
         writeln!(
             out,
             "Førte {} ({}) på {} for {}",
             time::Hours(&time),
-            time::HoursDiff(time - set_timestamp_result.previous_time),
+            time::HoursDiff(time - previous_time),
             project_id,
             label,
         )?;
     }
     Ok(())
-}
-
-impl FloqApiClient {
-    async fn set_timestamp(
-        &self,
-        employee_id: u16,
-        project_id: &str,
-        time: &Duration,
-        date: &NaiveDate,
-    ) -> Result<SetTimestampResult> {
-        let previous_time = self
-            .get_timestamp_on_project_for_date(employee_id, project_id, date)
-            .await?;
-
-        self.internal_set_timestamp(employee_id, project_id, date, *time)
-            .await
-            .map(|_| ())?;
-
-        Ok(SetTimestampResult { previous_time })
-    }
 }
