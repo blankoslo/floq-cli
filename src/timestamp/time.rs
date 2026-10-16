@@ -5,7 +5,7 @@ use chrono::{Datelike, NaiveDate};
 use clap::{Args, ValueEnum};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Weekday(pub chrono::Weekday);
+pub struct Weekday(chrono::Weekday);
 
 impl Weekday {
     pub fn full_name(&self) -> &'static str {
