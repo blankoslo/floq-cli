@@ -421,8 +421,8 @@ impl<T: Borrow<chrono::Duration>> Display for HoursDiff<T> {
             write!(
                 f,
                 "{}{}.{}t",
-                if self.0.borrow().num_minutes() > 0 { "+" } else { "" },
-                self.0.borrow().num_hours(),
+                if self.0.borrow().num_minutes() > 0 { "+" } else { "-" },
+                self.0.borrow().num_hours().abs(),
                 (*self.0.borrow() - chrono::Duration::hours(self.0.borrow().num_hours()))
                     .num_minutes()
                     .abs()
