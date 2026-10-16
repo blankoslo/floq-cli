@@ -82,7 +82,7 @@ impl FromStr for DayArg {
             Ok(DayArg::Date(date))
         } else {
             Err(anyhow!(
-                "Dato må være en ukedag eller en dato i formatet YYYY-MM-DD, f.eks. 2021-03-01"
+                "Dag må være en ukedag eller en dato i formatet YYYY-MM-DD, f.eks. 2021-03-01"
             ))
         }
     }
@@ -329,7 +329,7 @@ impl DaySelection {
                         if let DayArg::Weekday(d) = d {
                             days.push(d);
                         } else {
-                            return Err(anyhow!("--dato må være alle ukedager eller alle datoer"));
+                            return Err(anyhow!("--dag må være alle ukedager eller alle datoer"));
                         }
                     }
                     Self::Weekdays {
@@ -344,7 +344,7 @@ impl DaySelection {
                         if let DayArg::Date(d) = d {
                             days.push(d);
                         } else {
-                            return Err(anyhow!("--dato må være alle ukedager eller alle datoer"));
+                            return Err(anyhow!("--dag må være alle ukedager eller alle datoer"));
                         }
                     }
                     if args.uke.is_some() {
