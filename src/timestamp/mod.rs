@@ -17,7 +17,6 @@ pub struct TimestampArgs {
     prosjekt: String,
 
     /// Antall timer du ønsker å føre, settes til "7.5" hvis utelatt
-    // #[arg(short, long, default_value_t = 7.5, hide_default_value = true)]
     timer: Option<f32>,
 
     #[command(flatten)]
