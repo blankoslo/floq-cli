@@ -157,7 +157,7 @@ impl RelativeWeek {
     }
 
     pub fn resolve(&self, today: NaiveDate) -> Week {
-        Week(today.iso_week())
+        Week((today + chrono::Duration::weeks(*self as i64)).iso_week())
     }
 }
 
