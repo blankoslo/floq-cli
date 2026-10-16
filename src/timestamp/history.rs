@@ -93,11 +93,11 @@ pub async fn execute<T: Write + Send>(
                     .into_iter()
                     .map(|date| (date.format("%Y-%m-%d").to_string(), date))
                     .collect::<Vec<_>>();
-                let orientation = args.layout.unwrap_or(TableLayout::PerDag);
+                let layout = args.layout.unwrap_or(TableLayout::PerDag);
 
                 (
                     dates,
-                    orientation,
+                    layout,
                     force_show_weekend_dates,
                     show_total_per_project,
                     None,
