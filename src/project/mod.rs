@@ -1,3 +1,4 @@
+use crate::config::{FloqConfig, ProjectAlias};
 use crate::env::ENV;
 use crate::http_client::{FloqApiClient, HandleInvalidToken, HandleMalformedBody};
 use crate::print::TableMaker;
@@ -6,19 +7,99 @@ use crate::session::FloqSessionHandler;
 use std::io::Write;
 
 use chrono::{Datelike, Duration, NaiveDate, Utc};
-use clap::Args;
+use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 
-#[derive(Args)]
+#[derive(Deserialize, Debug)]
+pub struct Project {
+    pub id: String,
+    pub name: String,
+    #[allow(unused)]
+    active: bool,
+    pub customer: Customer,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Customer {
+    #[allow(unused)]
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Parser)]
+#[command(about, long_about = None)]
+pub struct ProjectCommand {
+    #[command(subcommand)]
+    command: Option<ProjectSubcommand>,
+}
+
+#[derive(Subcommand)]
+pub enum ProjectSubcommand {
+    /// List opp prosjekter (default)
+    #[command(name = "list")]
+    List(ProjectArgs),
+    /// Opprett prosjektalias
+    #[command(name = "alias")]
+    Alias(AliasCommand),
+}
+
+#[derive(Args, Default)]
 pub struct ProjectArgs {
     /// Vis alle prosjekter, i stedet for kun de du har ført timer på de siste to ukene
     #[arg(short, long)]
     alle: bool,
 }
 
+#[derive(Parser)]
+#[command(about, long_about = None)]
+pub struct AliasCommand {
+    #[command(subcommand)]
+    command: Option<AliasSubcommand>,
+}
+
+#[derive(Subcommand)]
+pub enum AliasSubcommand {
+    /// List opp prosjektalias (default)
+    #[command(name = "list")]
+    List,
+    /// Opprette et nytt prosjektalias
+    #[command(name = "opprett")]
+    Opprett(OpprettAliasArgs),
+    /// Slett et eksisterende prosjektalias
+    #[command(name = "slett")]
+    Slett(SlettAliasArgs),
+}
+
+#[derive(Args)]
+pub struct OpprettAliasArgs {
+    /// Prosjektet du ønsker å opprette et alias for
+    prosjekt: String,
+
+    /// Alias for prosjekt
+    alias: String,
+}
+
+#[derive(Args)]
+pub struct SlettAliasArgs {
+    /// Prosjektaliaset du ønkser å slette
+    alias: String,
+}
+
 pub async fn execute<T: Write + Send>(
+    cmd: ProjectCommand,
+    out: &mut T,
+    session_handler: &mut FloqSessionHandler,
+) -> Result<()> {
+    match cmd.command {
+        None => execute_list(Default::default(), out, session_handler).await,
+        Some(ProjectSubcommand::List(args)) => execute_list(args, out, session_handler).await,
+        Some(ProjectSubcommand::Alias(cmd)) => execute_alias(cmd, out, session_handler).await,
+    }
+}
+
+async fn execute_list<T: Write + Send>(
     args: ProjectArgs,
     out: &mut T,
     session_handler: &mut FloqSessionHandler,
@@ -48,20 +129,73 @@ pub async fn execute<T: Write + Send>(
     Ok(())
 }
 
-#[derive(Deserialize, Debug)]
-pub struct Project {
-    pub id: String,
-    pub name: String,
-    #[allow(unused)]
-    active: bool,
-    pub customer: Customer,
-}
+async fn execute_alias<T: Write + Send>(
+    cmd: AliasCommand,
+    out: &mut T,
+    session_handler: &mut FloqSessionHandler,
+) -> Result<()> {
+    match cmd.command {
+        None | Some(AliasSubcommand::List) => {
+            let alias = FloqConfig::from_file().await?.project_alias;
 
-#[derive(Deserialize, Debug)]
-pub struct Customer {
-    #[allow(unused)]
-    pub id: String,
-    pub name: String,
+            let mut table_maker = TableMaker::new();
+            table_maker.static_titles(vec!["PROSJEKTID", "ALIAS"]);
+            table_maker
+                .with(Box::new(|p: &ProjectAlias| p.project_id.clone()))
+                .with(Box::new(|p| p.alias.clone()));
+            table_maker.into_table(&alias).print(out)?;
+
+            Ok(())
+        }
+        Some(AliasSubcommand::Opprett(OpprettAliasArgs { prosjekt, alias })) => {
+            let session = session_handler.open(out, Duration::minutes(1)).await?;
+            let http_client = FloqApiClient::from_session(session);
+
+            let project = http_client.get_projects().await?;
+            if !project.iter().any(|p| p.id == prosjekt) {
+                return Err(anyhow!("Fant ingen project med koden '{prosjekt}'"));
+            }
+            let mut config = FloqConfig::from_file().await?;
+            if let Some(pa) = config.find_project_alias_by_project_id(&prosjekt) {
+                return Err(anyhow!(
+                    "Prosjektet '{}' har allerede et alias '{}'",
+                    pa.project_id,
+                    pa.alias,
+                ));
+            }
+            if let Some(pa) = config.find_project_alias_by_alias(&alias) {
+                return Err(anyhow!(
+                    "Alias '{}' er allerede i bruk for prosjektet '{}'",
+                    pa.alias,
+                    pa.project_id,
+                ));
+            }
+
+            config.project_alias.push(ProjectAlias {
+                project_id: prosjekt,
+                alias,
+            });
+            config.save_to_file().await?;
+
+            Ok(())
+        }
+        Some(AliasSubcommand::Slett(SlettAliasArgs { alias })) => {
+            let mut config = FloqConfig::from_file().await?;
+            if let None = config.find_project_alias_by_alias(&alias) {
+                return Err(anyhow!("Fant ingen konfiguerte alias med navnet '{alias}'"));
+            }
+
+            let project_alias = config
+                .project_alias
+                .into_iter()
+                .filter(|pa| pa.alias != alias)
+                .collect();
+            config.project_alias = project_alias;
+            config.save_to_file().await?;
+
+            Ok(())
+        }
+    }
 }
 
 impl FloqApiClient {
@@ -78,6 +212,7 @@ impl FloqApiClient {
             .json()
             .await
             .handle_malformed_body()
+            .context("Klarte ikke lese responsen fra /projects")
     }
 }
 
@@ -146,7 +281,7 @@ impl FloqApiClient {
             .json::<Vec<ProjectForEmployeeResponse>>()
             .await
             .handle_malformed_body()
-            .context("Noe gikk kalt under lesing av responsen fra /rpc/projects_info_for_employee_in_period")?
+            .context("Klarte ikke lese responsen fra /rpc/projects_info_for_employee_in_period")?
             .into_iter()
             .map(|r| r.into_project())
             .collect())
