@@ -4,6 +4,7 @@ use crate::http_client::{FloqApiClient, HandleInvalidToken, HandleMalformedBody}
 use crate::print::TableMaker;
 use crate::session::FloqSessionHandler;
 
+use std::collections::HashMap;
 use std::io::Write;
 
 use chrono::{Datelike, Duration, NaiveDate, Utc};
@@ -11,8 +12,9 @@ use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 
 use anyhow::{Context, Result, anyhow};
+use tokio::task::JoinSet;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Project {
     pub id: String,
     pub name: String,
@@ -21,7 +23,7 @@ pub struct Project {
     pub customer: Customer,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Customer {
     #[allow(unused)]
     pub id: String,
@@ -37,19 +39,15 @@ pub struct ProjectCommand {
 
 #[derive(Subcommand)]
 pub enum ProjectSubcommand {
-    /// List opp prosjekter (default)
-    #[command(name = "list")]
-    List(ProjectArgs),
+    /// List opp mine prosjekter (default)
+    #[command(name = "mine")]
+    ListMine,
+    /// List opp alle prosjekter
+    #[command(name = "alle")]
+    ListAlle,
     /// Opprett prosjektalias
     #[command(name = "alias")]
     Alias(AliasCommand),
-}
-
-#[derive(Args, Default)]
-pub struct ProjectArgs {
-    /// Vis alle prosjekter, i stedet for kun de du har ført timer på de siste to ukene
-    #[arg(short, long)]
-    alle: bool,
 }
 
 #[derive(Parser)]
@@ -93,37 +91,107 @@ pub async fn execute<T: Write + Send>(
     session_handler: &mut FloqSessionHandler,
 ) -> Result<()> {
     match cmd.command {
-        None => execute_list(Default::default(), out, session_handler).await,
-        Some(ProjectSubcommand::List(args)) => execute_list(args, out, session_handler).await,
+        None | Some(ProjectSubcommand::ListMine) => execute_list_mine(out, session_handler).await,
+        Some(ProjectSubcommand::ListAlle) => execute_list_all(out, session_handler).await,
         Some(ProjectSubcommand::Alias(cmd)) => execute_alias(cmd, out, session_handler).await,
     }
 }
 
-async fn execute_list<T: Write + Send>(
-    args: ProjectArgs,
-    out: &mut T,
-    session_handler: &mut FloqSessionHandler,
-) -> Result<()> {
+#[derive(Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct PrintProject {
+    project: Project,
+    alias: Option<String>,
+}
+
+async fn execute_list_all<T: Write + Send>(out: &mut T, session_handler: &mut FloqSessionHandler) -> Result<()> {
+    let session = session_handler.open(out, Duration::minutes(1)).await?;
+    let client = FloqApiClient::from_session(session);
+    let config = FloqConfig::from_file().await?;
+
+    let mut projects: Vec<PrintProject> = client
+        .get_projects()
+        .await?
+        .into_iter()
+        .map(|project| PrintProject {
+            alias: config
+                .find_project_alias_by_project_id(&project.id)
+                .map(|pa| pa.alias.clone()),
+            project,
+        })
+        .collect();
+    projects.sort();
+
+    let mut table_maker = TableMaker::new();
+    table_maker.static_titles(vec!["ID", "KUNDE", "BESKRIVELSE", "ALIAS"]);
+    table_maker
+        .with(Box::new(|p: &PrintProject| p.project.id.clone()))
+        .with(Box::new(|p| p.project.customer.name.clone()))
+        .with(Box::new(|p| p.project.name.clone()))
+        .with(Box::new(|p| p.alias.clone().unwrap_or_default()));
+    table_maker.into_table(&projects).print(out)?;
+
+    Ok(())
+}
+
+async fn execute_list_mine<T: Write + Send>(out: &mut T, session_handler: &mut FloqSessionHandler) -> Result<()> {
     let session = session_handler.open(out, Duration::minutes(1)).await?;
     let client = FloqApiClient::from_session(session);
 
-    let mut projects = if args.alle {
-        client.get_projects().await?
-    } else {
-        let employee_id = client.get_logged_in_employee().await?.id;
-
-        client
+    let mut set: JoinSet<Result<Vec<PrintProject>, anyhow::Error>> = JoinSet::new();
+    let c1 = client.clone();
+    set.spawn(async move {
+        let employee_id = c1.get_logged_in_employee().await?.id;
+        Ok(c1
             .get_current_timestamped_projects_for_employee(employee_id)
             .await?
-    };
-    projects.sort_by(|p1, p2| p1.id.cmp(&p2.id));
+            .into_iter()
+            .map(|project| PrintProject { project, alias: None })
+            .collect())
+    });
+    set.spawn(async move {
+        let config = FloqConfig::from_file().await?;
+        if config.project_alias.is_empty() {
+            Ok(vec![])
+        } else {
+            let projects = client.get_projects().await?;
+            Ok(projects
+                .into_iter()
+                .filter_map(|project| {
+                    config
+                        .project_alias
+                        .iter()
+                        .find(|pa| project.id == pa.project_id)
+                        .map(|pa| PrintProject {
+                            project,
+                            alias: Some(pa.alias.clone()),
+                        })
+                })
+                .collect())
+        }
+    });
+    let mut projects: HashMap<String, PrintProject> = HashMap::new();
+    while let Some(next_projects) = set.join_next().await {
+        for next in next_projects?? {
+            let key = &next.project.id;
+            if let Some(existing) = projects.get(key) {
+                if existing.alias.is_none() {
+                    projects.insert(key.clone(), next);
+                }
+            } else {
+                projects.insert(key.clone(), next);
+            }
+        }
+    }
+    let mut projects: Vec<PrintProject> = projects.into_values().collect();
+    projects.sort();
 
     let mut table_maker = TableMaker::new();
-    table_maker.static_titles(vec!["ID", "KUNDE", "BESKRIVELSE"]);
+    table_maker.static_titles(vec!["ID", "KUNDE", "BESKRIVELSE", "ALIAS"]);
     table_maker
-        .with(Box::new(|p: &Project| p.id.clone()))
-        .with(Box::new(|p| p.customer.name.clone()))
-        .with(Box::new(|p| p.name.clone()));
+        .with(Box::new(|p: &PrintProject| p.project.id.clone()))
+        .with(Box::new(|p| p.project.customer.name.clone()))
+        .with(Box::new(|p| p.project.name.clone()))
+        .with(Box::new(|p| p.alias.clone().unwrap_or_default()));
     table_maker.into_table(&projects).print(out)?;
 
     Ok(())
