@@ -181,7 +181,7 @@ async fn execute_alias<T: Write + Send>(
         }
         Some(AliasSubcommand::Slett(SlettAliasArgs { alias })) => {
             let mut config = FloqConfig::from_file().await?;
-            if let None = config.find_project_alias_by_alias(&alias) {
+            if config.find_project_alias_by_alias(&alias).is_none() {
                 return Err(anyhow!("Fant ingen konfiguerte alias med navnet '{alias}'"));
             }
 
