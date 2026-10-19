@@ -1,90 +1,32 @@
-use super::{TimestampDate, TimestampHours};
-use crate::{http_client::FloqApiClient, print, session::FloqSessionHandler, time};
+use crate::{
+    http_client::FloqApiClient,
+    session::FloqSessionHandler,
+    timestamp::time::{DaySelection, DaySelectionArgs, Days, Hours, RelativeWeek},
+};
 
-use std::{collections::HashMap, io::Write};
+use std::io::Write;
 
 use anyhow::Result;
-use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
-use clap::Args;
+use chrono::{Datelike, Duration, Utc};
+use clap::{Args, ValueEnum};
+use futures::{StreamExt, stream::FuturesOrdered};
 
 #[derive(Args)]
 pub struct HistoryArgs {
-    /// Dagen du ønsker å vise timer for.
-    /// F.eks. "--dato 2021-03-01"
-    #[arg(short, long, value_parser = time::parse_date, verbatim_doc_comment)]
-    dato: Option<NaiveDate>,
+    #[command(flatten)]
+    dato: DaySelectionArgs,
 
-    /// Første dagen å vise timer for, settes til mandag denne uken hvis utelatt.
-    /// Er inklusiv. F.eks. "--fra 2021-03-01"
-    #[arg(long, requires = "til", conflicts_with = "dato", value_parser = time::parse_date, verbatim_doc_comment)]
-    fra: Option<NaiveDate>,
-
-    /// Siste dagen å vise timer for, settes til fredag denne uken hvis utelatt.
-    /// Er inklusiv. F.eks. "--til 2021-03-05"
-    #[arg(long, requires = "fra", conflicts_with = "dato", value_parser = time::parse_date, verbatim_doc_comment)]
-    til: Option<NaiveDate>,
-
-    /// Vis timer ført i forrige uke
-    #[arg(long, conflicts_with_all = ["dato", "fra", "til", "neste_uke"])]
-    forrige_uke: bool,
-
-    /// Vis timer ført for neste uke
-    #[arg(long, conflicts_with_all = ["dato", "fra", "til", "forrige_uke"])]
-    neste_uke: bool,
-
-    /// Snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
-    /// Dette blir gjort automatisk hvis det skal vises timer for mer enn én uke.
-    #[arg(long, conflicts_with_all = ["ikke_snu_tabell", "dato"], verbatim_doc_comment)]
-    snu_tabell: bool,
-
-    /// Ikke snu om på tabellen slik at rader går fra å være per prosjekt til per dag og prosjekt.
-    /// Stopper det fra å bli gjort automatisk hvis det skal vises timer for mer enn én uke.
-    #[arg(long, conflicts_with_all = ["snu_tabell", "dato"], verbatim_doc_comment)]
-    ikke_snu_tabell: bool,
+    /// Overskriv layout på tabellen. Standard for ukesvisning er per prosjekt, mens for datoer er det per dag.
+    #[arg(short, long, value_enum, verbatim_doc_comment)]
+    layout: Option<TableLayout>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Timestamp {
-    pub date: NaiveDate,
-    pub time: Duration,
-}
-
-impl Timestamp {
-    pub fn is_time_zero(&self) -> bool {
-        self.time == Duration::zero()
-    }
-}
-
-pub struct ProjectTimestamp {
-    pub project_id: String,
-    pub project_name: String,
-    pub customer_name: String,
-    pub timestamp: Timestamp,
-}
-
-impl ProjectTimestamp {
-    fn into_project_timestamps(self) -> ProjectTimestamps {
-        ProjectTimestamps {
-            project_id: self.project_id,
-            project_name: self.project_name,
-            customer_name: self.customer_name,
-            timestamps: vec![self.timestamp],
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct ProjectTimestamps {
-    pub project_id: String,
-    pub project_name: String,
-    pub customer_name: String,
-    pub timestamps: Vec<Timestamp>,
-}
-
-impl ProjectTimestamps {
-    pub fn find_timestamp_for_date(&self, date: &NaiveDate) -> Option<&Timestamp> {
-        self.timestamps.iter().find(|t| t.date == *date)
-    }
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum TableLayout {
+    /// Tabellen viser en rad per prosjekt, og en kolonne for hver dag.
+    PerProsjekt,
+    /// Tabellen viser en rad per dag, og en kolonne for hvert prosjekt.
+    PerDag,
 }
 
 pub async fn execute<T: Write + Send>(
@@ -92,148 +34,264 @@ pub async fn execute<T: Write + Send>(
     out: &mut T,
     session_handler: &mut FloqSessionHandler,
 ) -> Result<()> {
+    let today = Utc::now().date_naive();
+
+    let (dates, layout, force_show_weekend_dates, show_total_per_project, week) = match args.dato.to_day_selection()? {
+        DaySelection::None => {
+            // No week or days provided. Default to showing the current week
+            let week = RelativeWeek::Current.resolve(today);
+            let days = Days::whole_week();
+
+            let force_show_weekend_dates = false;
+            let show_total_per_project = true;
+            let dates = days
+                .into_iter()
+                .map(|weekday| (weekday.to_string(), week.resolve_weekday(weekday)))
+                .collect::<Vec<_>>();
+            let layout = args.layout.unwrap_or(TableLayout::PerProsjekt);
+
+            (
+                dates,
+                layout,
+                force_show_weekend_dates,
+                show_total_per_project,
+                Some(week),
+            )
+        }
+        DaySelection::Weekdays { week, days } => {
+            let week = week.resolve(today);
+            let (force_show_weekend_dates, days) = match days {
+                Some(days) => (
+                    // Always show weekend dates if weekend days were explicitly selected
+                    days.has_weekend(),
+                    days,
+                ),
+                None => (false, Days::whole_week()),
+            };
+
+            let show_total_per_project = true;
+            let dates = days
+                .into_iter()
+                .map(|weekday| (weekday.to_string(), week.resolve_weekday(weekday)))
+                .collect::<Vec<_>>();
+            let layout = args.layout.unwrap_or(TableLayout::PerProsjekt);
+
+            (
+                dates,
+                layout,
+                force_show_weekend_dates,
+                show_total_per_project,
+                Some(week),
+            )
+        }
+        DaySelection::Dates(days) => {
+            let force_show_weekend_dates = false;
+            // Showing total is not really necessary for single dates
+            let show_total_per_project = days.is_range();
+            let dates = days
+                .into_iter()
+                .map(|date| (date.format("%Y-%m-%d").to_string(), date))
+                .collect::<Vec<_>>();
+            let layout = args.layout.unwrap_or(TableLayout::PerDag);
+
+            (dates, layout, force_show_weekend_dates, show_total_per_project, None)
+        }
+    };
+
     let session = session_handler.open(out, Duration::minutes(1)).await?;
     let client = FloqApiClient::from_session(session);
 
     let employee_id = client.get_logged_in_employee().await?.id;
 
-    if let Some(date) = args.dato {
-        let mut timestamps = client.get_timestamps_for_date(employee_id, date).await?;
-        timestamps.sort_by(|t0, t1| t0.project_id.cmp(&t1.project_id));
-
-        let mut table_maker = print::TableMaker::new();
-
-        table_maker.titles(vec!["PROSJEKT".to_string(), TimestampDate(&date).to_string()]);
-
-        table_maker.with(Box::new(|pt: &ProjectTimestamp| pt.project_id.clone()));
-        table_maker.with(Box::new(move |pt| TimestampHours(&pt.timestamp.time).to_string()));
-
-        table_maker.into_table(timestamps.as_slice()).print(out)?;
-    } else {
-        let from = if let Some(from) = args.fra {
-            from
-        } else {
-            let base_date = if args.forrige_uke {
-                Utc::now().date_naive() - Duration::weeks(1)
-            } else if args.neste_uke {
-                Utc::now().date_naive() + Duration::weeks(1)
-            } else {
-                // default to monday this week
-                Utc::now().date_naive()
-            };
-            let days_from_monday = base_date.weekday().num_days_from_monday() as i64;
-
-            base_date - Duration::days(days_from_monday)
-        };
-
-        let to = if let Some(to) = args.til {
-            to
-        } else {
-            let base_date = if args.forrige_uke {
-                Utc::now().date_naive() - Duration::weeks(1)
-            } else if args.neste_uke {
-                Utc::now().date_naive() + Duration::weeks(1)
-            } else {
-                // default to monday this week
-                Utc::now().date_naive()
-            };
-            let days_from_monday = base_date.weekday().num_days_from_monday() as i64;
-
-            base_date + Duration::days(6 - days_from_monday)
-        };
-
-        // only one of these two can be true, if none are then we let the number of days in period decide
-        let turn_table = args.snu_tabell;
-        let dont_turn_table = args.ikke_snu_tabell;
-        if turn_table || (!dont_turn_table && to - from > Duration::days(6)) {
-            // auto transpose if more than one week
-            let mut timestamps = client.get_timestamps_for_period(employee_id, from, to).await?;
-            timestamps.sort_by_key(|t| t.timestamp.date);
-
-            let mut table_maker = print::TableMaker::new();
-            table_maker.static_titles(vec!["DATO", "PROSJEKT", "TIMER"]);
-            table_maker.with(Box::new(|pt: &ProjectTimestamp| {
-                TimestampDate(&pt.timestamp.date).to_string()
-            }));
-            table_maker.with(Box::new(|pt: &ProjectTimestamp| pt.project_id.clone()));
-            table_maker.with(Box::new(|pt: &ProjectTimestamp| {
-                TimestampHours(&pt.timestamp.time).to_string()
-            }));
-
-            table_maker.into_table(timestamps.as_slice()).print(out)?;
-        } else {
-            let mut timestamps = client
-                .get_sum_timestamps_by_project_for_period(employee_id, from, to)
-                .await?;
-            timestamps.sort_by(|t0, t1| t0.project_id.cmp(&t1.project_id));
-            let timestamped_dates: HashMap<NaiveDate, ()> = timestamps
-                .iter()
-                .flat_map(|pt| pt.timestamps.iter().map(|t| t.date))
-                .map(|d| (d, ()))
-                .collect();
-            let mut skipped_days = vec![];
-
-            let mut table_maker = print::TableMaker::new();
-
-            let titles =
-                from.iter_days()
-                    .take_while(|d| d <= &to)
-                    .fold(vec!["PROSJEKT".to_string()], |mut titles, next| {
-                        // skip days in weekend if no timestamp
-                        let weekday = next.weekday();
-                        let is_weekend = weekday == Weekday::Sat || weekday == Weekday::Sun;
-                        if !is_weekend || timestamped_dates.contains_key(&next) {
-                            titles.push(TimestampDate(&next).to_string());
-                        } else {
-                            skipped_days.push(next);
-                        }
-                        titles
-                    });
-            table_maker.titles(titles);
-
-            table_maker.with(Box::new(|pt: &ProjectTimestamps| pt.project_id.clone()));
-            from.iter_days()
-                .take_while(|d| d <= &to)
-                .filter(|d| !skipped_days.contains(d))
-                .for_each(|d| {
-                    table_maker.with(Box::new(move |pt| {
-                        pt.find_timestamp_for_date(&d)
-                            .map(|ts| TimestampHours(&ts.time).to_string())
-                            .unwrap_or_default()
-                    }));
-                });
-
-            table_maker.into_table(timestamps.as_slice()).print(out)?;
-        }
+    struct DataEntry {
+        project_id: String,
+        time: Duration,
     }
 
-    Ok(())
-}
+    let data: Vec<(String, Vec<DataEntry>)> = {
+        let mut futures: FuturesOrdered<_> = dates
+            .into_iter()
+            .map(async |(label, date)| (label, date, client.get_timestamps_for_date(employee_id, date).await))
+            .collect();
 
-impl FloqApiClient {
-    pub async fn get_sum_timestamps_by_project_for_period(
-        &self,
-        employee_id: u16,
-        from: NaiveDate,
-        to: NaiveDate,
-    ) -> Result<Vec<ProjectTimestamps>> {
-        let project_timestamps = self.get_timestamps_for_period(employee_id, from, to).await?;
+        let mut data = Vec::new();
+        while let Some((label, date, timestamps_for_date)) = futures.next().await {
+            let entries = timestamps_for_date?
+                .into_iter()
+                .map(|t| DataEntry {
+                    project_id: t.id,
+                    time: Duration::minutes(t.minutes),
+                })
+                .filter(|e| e.time != Duration::zero())
+                .collect::<Vec<_>>();
 
-        let project_to_timestamps: HashMap<String, ProjectTimestamps> =
-            project_timestamps.into_iter().fold(HashMap::new(), |mut res, next| {
-                let key = next.project_id.clone();
-                let value = match res.remove(&next.project_id) {
-                    Some(mut pt) => {
-                        pt.timestamps.push(next.timestamp);
-                        pt
-                    }
-                    None => next.into_project_timestamps(),
-                };
+            if !matches!(date.weekday(), chrono::Weekday::Sat | chrono::Weekday::Sun)
+                || force_show_weekend_dates
+                || !entries.is_empty()
+            {
+                data.push((label, entries));
+            }
+        }
+        data
+    };
 
-                res.insert(key, value);
-                res
+    let projects = {
+        let mut projects = Vec::new();
+        for (_, entries) in &data {
+            for entry in entries {
+                if !projects.contains(&entry.project_id.as_str()) {
+                    projects.push(entry.project_id.as_str());
+                }
+            }
+        }
+        projects.sort();
+        projects
+    };
+
+    // Show total per day if there are multiple projects
+    // Alternatively, if there is no data (in which case projects.len() == 0), show the total to highlight the absence of project-specific entries
+    let show_total_per_date = projects.len() != 1;
+    // header + projects + total (if show_total_per_date)
+    let project_axis_len = 1 + projects.len() + if show_total_per_date { 1 } else { 0 };
+    // header + data rows + total (if show_total_per_project)
+    let date_axis_len = 1 + data.len() + if show_total_per_project { 1 } else { 0 };
+
+    if let Some(week) = &week {
+        writeln!(out, "Viser timer for uke {}", week.week_number())?;
+    }
+
+    match layout {
+        TableLayout::PerDag => {
+            let mut rows = Vec::<prettytable::Row>::with_capacity(date_axis_len);
+            rows.push({
+                let mut cells = Vec::<prettytable::Cell>::with_capacity(project_axis_len);
+                cells.push(prettytable::cell!("Dato"));
+                for project in &projects {
+                    cells.push(prettytable::cell!(project));
+                }
+                if show_total_per_date {
+                    cells.push(prettytable::cell!("Total"));
+                }
+                prettytable::Row::new(cells)
             });
 
-        Ok(project_to_timestamps.into_values().collect())
-    }
+            for (label, entries) in &data {
+                rows.push({
+                    let mut cells = Vec::<prettytable::Cell>::with_capacity(project_axis_len);
+                    cells.push(prettytable::cell!(label));
+                    for project in &projects {
+                        let time = entries
+                            .iter()
+                            .find(|e| e.project_id == *project)
+                            .map(|e| e.time)
+                            .unwrap_or(Duration::zero());
+                        if time != Duration::zero() {
+                            cells.push(prettytable::cell!(r->Hours(time)))
+                        } else {
+                            cells.push(prettytable::cell!());
+                        }
+                    }
+                    if show_total_per_date {
+                        let total_time = entries.iter().map(|e| e.time).sum::<Duration>();
+                        cells.push(prettytable::cell!(r->Hours(total_time)));
+                    }
+                    prettytable::Row::new(cells)
+                });
+            }
+
+            if show_total_per_project {
+                rows.push({
+                    let mut cells = Vec::<prettytable::Cell>::with_capacity(project_axis_len);
+                    cells.push(prettytable::cell!("TOTALT"));
+                    for project in &projects {
+                        let total_time = data
+                            .iter()
+                            .flat_map(|(_, entries)| {
+                                entries.iter().filter(|e| e.project_id == *project).map(|e| e.time)
+                            })
+                            .sum::<Duration>();
+                        cells.push(prettytable::cell!(r->Hours(total_time)));
+                    }
+                    if show_total_per_date {
+                        let total_time = data
+                            .iter()
+                            .flat_map(|(_, entries)| entries.iter().map(|e| e.time))
+                            .sum::<Duration>();
+                        cells.push(prettytable::cell!(r->Hours(total_time)));
+                    }
+                    prettytable::Row::new(cells)
+                });
+            }
+
+            let table = prettytable::Table::init(rows);
+            table.print(out)?;
+        }
+        TableLayout::PerProsjekt => {
+            let mut rows = Vec::<prettytable::Row>::with_capacity(project_axis_len);
+            rows.push({
+                let mut cells = Vec::<prettytable::Cell>::with_capacity(date_axis_len);
+                cells.push(prettytable::cell!("Prosjekt"));
+                for (label, _) in &data {
+                    cells.push(prettytable::cell!(label));
+                }
+                if show_total_per_project {
+                    cells.push(prettytable::cell!("Total"));
+                }
+                prettytable::Row::new(cells)
+            });
+
+            for project in &projects {
+                rows.push({
+                    let mut cells = Vec::<prettytable::Cell>::with_capacity(date_axis_len);
+                    cells.push(prettytable::Cell::new(project));
+                    for (_, entries) in &data {
+                        let time = entries
+                            .iter()
+                            .find(|e| e.project_id == *project)
+                            .map(|e| e.time)
+                            .unwrap_or(Duration::zero());
+                        if time != Duration::zero() {
+                            cells.push(prettytable::cell!(r->Hours(time)));
+                        } else {
+                            cells.push(prettytable::cell!());
+                        }
+                    }
+                    if show_total_per_project {
+                        let total_time = data
+                            .iter()
+                            .flat_map(|(_, entries)| {
+                                entries.iter().filter(|e| e.project_id == *project).map(|e| e.time)
+                            })
+                            .sum::<Duration>();
+                        cells.push(prettytable::cell!(r->Hours(total_time)));
+                    }
+                    prettytable::Row::new(cells)
+                });
+            }
+
+            if show_total_per_date {
+                rows.push({
+                    let mut cells = Vec::<prettytable::Cell>::with_capacity(date_axis_len);
+                    cells.push(prettytable::cell!("Total"));
+                    for (_, entries) in &data {
+                        let total_time = entries.iter().map(|e| e.time).sum::<Duration>();
+                        cells.push(prettytable::cell!(r->Hours(total_time)));
+                    }
+                    if show_total_per_project {
+                        let total_time = data
+                            .iter()
+                            .flat_map(|(_, entries)| entries.iter().map(|e| e.time))
+                            .sum::<Duration>();
+                        cells.push(prettytable::cell!(r->Hours(total_time)));
+                    }
+                    prettytable::Row::new(cells)
+                });
+            }
+
+            let table = prettytable::Table::init(rows);
+            table.print(out)?;
+        }
+    };
+
+    Ok(())
 }

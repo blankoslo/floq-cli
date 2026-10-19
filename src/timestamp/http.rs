@@ -1,10 +1,8 @@
-use super::history::{ProjectTimestamp, Timestamp};
 use crate::env::ENV;
 use crate::http_client::{FloqApiClient, HandleInvalidToken, HandleMalformedBody};
 
 use anyhow::{Context, Result, anyhow};
 use chrono::{Duration, NaiveDate};
-use futures::{StreamExt, stream::FuturesUnordered};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 
@@ -20,25 +18,13 @@ struct TimestampedProjectsRequest {
 }
 
 #[derive(Deserialize, Debug)]
-struct TimestampedProjectsResponse {
-    id: String,
-    project: String,
-    customer: String,
-    minutes: i64,
-}
-
-impl TimestampedProjectsResponse {
-    fn to_project_timestamp(&self, date: NaiveDate) -> ProjectTimestamp {
-        ProjectTimestamp {
-            project_id: self.id.clone(),
-            project_name: self.project.clone(),
-            customer_name: self.customer.clone(),
-            timestamp: Timestamp {
-                date,
-                time: Duration::minutes(self.minutes),
-            },
-        }
-    }
+pub struct ProjectTimeEntry {
+    pub id: String,
+    #[allow(unused)]
+    pub project: String,
+    #[allow(unused)]
+    pub customer: String,
+    pub minutes: i64,
 }
 
 impl FloqApiClient {
@@ -73,34 +59,13 @@ impl FloqApiClient {
             .unwrap_or_else(Duration::zero))
     }
 
-    pub async fn get_timestamps_for_period(
-        &self,
-        employee_id: u16,
-        from: NaiveDate,
-        to: NaiveDate,
-    ) -> Result<Vec<ProjectTimestamp>> {
-        let difference = to.signed_duration_since(from).num_days();
-
-        let mut futures: FuturesUnordered<_> = (0..=difference)
-            .map(|i| self.get_timestamps_for_date(employee_id, from + Duration::days(i)))
-            .collect();
-
-        let mut results: Vec<Vec<ProjectTimestamp>> = vec![];
-        while let Some(r) = futures.next().await {
-            results.push(r?);
-        }
-
-        Ok(results.into_iter().flatten().collect())
-    }
-
-    pub async fn get_timestamps_for_date(&self, employee_id: u16, date: NaiveDate) -> Result<Vec<ProjectTimestamp>> {
+    pub async fn get_timestamps_for_date(&self, employee_id: u16, date: NaiveDate) -> Result<Vec<ProjectTimeEntry>> {
         let body = TimestampedProjectsRequest { employee_id, date }
             .serialize(serde_json::value::Serializer)?
             .to_string();
         let url = format!("{}/rpc/projects_for_employee_for_date", ENV.api_domain);
 
-        Ok(self
-            .client
+        self.client
             .post(url)
             .body(body)
             .send()
@@ -108,14 +73,10 @@ impl FloqApiClient {
             .handle_floq_response()
             .await
             .context("Noe gikk galt under henting av dine timer for en dag")?
-            .json::<Vec<TimestampedProjectsResponse>>()
+            .json::<Vec<ProjectTimeEntry>>()
             .await
             .handle_malformed_body()
-            .context("Klarte ikke å lese responsen fra /rpc/projects_for_employee_for_date")?
-            .into_iter()
-            .map(|r| r.to_project_timestamp(date))
-            .filter(|tp| !tp.timestamp.is_time_zero())
-            .collect())
+            .context("Klarte ikke å lese responsen fra /rpc/projects_for_employee_for_date")
     }
 }
 
@@ -129,12 +90,12 @@ struct TimestampRequest<'a> {
 }
 
 impl FloqApiClient {
-    pub async fn internal_set_timestamp(
+    pub async fn set_timestamp(
         &self,
         employee_id: u16,
         project_id: &str,
         date: &NaiveDate,
-        time: Duration,
+        time: &Duration,
     ) -> Result<()> {
         let body = TimestampRequest {
             creator: employee_id,
@@ -169,5 +130,19 @@ impl FloqApiClient {
                 sc
             )),
         }
+    }
+
+    pub async fn set_timestamp_and_get_previous(
+        &self,
+        employee_id: u16,
+        project_id: &str,
+        date: &NaiveDate,
+        time: &Duration,
+    ) -> Result<Duration> {
+        let previous_time = self
+            .get_timestamp_on_project_for_date(employee_id, project_id, date)
+            .await?;
+        self.set_timestamp(employee_id, project_id, date, time).await?;
+        Ok(previous_time)
     }
 }

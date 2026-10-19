@@ -11,7 +11,6 @@ mod http_client;
 mod print;
 mod project;
 mod session;
-mod time;
 mod timestamp;
 mod user;
 

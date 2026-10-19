@@ -15,10 +15,6 @@ impl<T> TableMaker<T> {
         }
     }
 
-    pub fn titles(&mut self, titles: Vec<String>) {
-        self.titles = titles;
-    }
-
     pub fn static_titles(&mut self, titles: Vec<&'static str>) {
         self.titles = titles.into_iter().map(|s| s.to_string()).collect();
     }
