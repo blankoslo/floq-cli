@@ -7,20 +7,25 @@ use std::{
     fmt::Display,
     io::{self, Read, Seek, Write},
     path::{Path, PathBuf},
-    sync::LazyLock,
 };
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tokio::task;
+use tokio::{fs, sync::OnceCell, task};
 
 use crate::env::ENV;
 
-static CONFIG_FILE: LazyLock<PathBuf> = LazyLock::new(|| {
-    let mut file = config_dir();
-    file.push("config.toml");
-    file
-});
+static CONFIG_FILE: OnceCell<PathBuf> = OnceCell::const_new();
+
+async fn get_config_file_path() -> &'static Path {
+    CONFIG_FILE
+        .get_or_init(async || {
+            let mut file = config_dir();
+            file.push("config.toml");
+            file
+        })
+        .await
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FloqConfig {
@@ -29,13 +34,15 @@ pub struct FloqConfig {
 
 impl FloqConfig {
     pub async fn from_file() -> Result<Self> {
-        match read_file(CONFIG_FILE.as_path()).await {
+        let config_file_path = get_config_file_path().await;
+
+        match read_file(config_file_path).await {
             Ok(mut configs) => Ok(configs.remove(ENV.issuer).unwrap_or_default()),
-            Err(ReadFileError::Deseralization(_)) => match std::fs::remove_file(CONFIG_FILE.as_path()) {
+            Err(ReadFileError::Deseralization(_)) => match fs::remove_file(config_file_path).await {
                 Ok(_) => Ok(Default::default()),
                 Err(e) => Err(e).context(format!(
                     "Kunne ikke slette ugyldig konfigurasjonsfil, venligst gjør dette manuelt. {}",
-                    CONFIG_FILE.display(),
+                    config_file_path.display(),
                 )),
             },
             Err(e) => Err(e).context("Kunne ikke lese konfigurasjonsfil"),
@@ -44,7 +51,7 @@ impl FloqConfig {
 
     pub async fn save_to_file(&self) -> Result<()> {
         let config = self.clone();
-        modify_file(CONFIG_FILE.as_path(), move |configs| {
+        modify_file(get_config_file_path().await, move |configs| {
             configs.insert(ENV.issuer.to_string(), config);
         })
         .await

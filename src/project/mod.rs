@@ -5,6 +5,7 @@ use crate::print::TableMaker;
 use crate::session::FloqSessionHandler;
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::io::Write;
 
 use chrono::{Datelike, Duration, NaiveDate, Utc};
@@ -40,13 +41,13 @@ pub struct ProjectCommand {
 #[derive(Subcommand)]
 pub enum ProjectSubcommand {
     /// List opp mine prosjekter (default)
-    #[command(name = "mine")]
-    ListMine,
+    #[command()]
+    Mine,
     /// List opp alle prosjekter
-    #[command(name = "alle")]
-    ListAlle,
+    #[command()]
+    Alle,
     /// Opprett prosjektalias
-    #[command(name = "alias")]
+    #[command()]
     Alias(AliasCommand),
 }
 
@@ -60,13 +61,13 @@ pub struct AliasCommand {
 #[derive(Subcommand)]
 pub enum AliasSubcommand {
     /// List opp prosjektalias (default)
-    #[command(name = "list")]
+    #[command()]
     List,
     /// Opprette et nytt prosjektalias
-    #[command(name = "opprett")]
+    #[command()]
     Opprett(OpprettAliasArgs),
     /// Slett et eksisterende prosjektalias
-    #[command(name = "slett")]
+    #[command()]
     Slett(SlettAliasArgs),
 }
 
@@ -85,22 +86,22 @@ pub struct SlettAliasArgs {
     alias: String,
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct PrintProject {
+    project: Project,
+    alias: Option<String>,
+}
+
 pub async fn execute<T: Write + Send>(
     cmd: ProjectCommand,
     out: &mut T,
     session_handler: &mut FloqSessionHandler,
 ) -> Result<()> {
     match cmd.command {
-        None | Some(ProjectSubcommand::ListMine) => execute_list_mine(out, session_handler).await,
-        Some(ProjectSubcommand::ListAlle) => execute_list_all(out, session_handler).await,
+        None | Some(ProjectSubcommand::Mine) => execute_list_mine(out, session_handler).await,
+        Some(ProjectSubcommand::Alle) => execute_list_all(out, session_handler).await,
         Some(ProjectSubcommand::Alias(cmd)) => execute_alias(cmd, out, session_handler).await,
     }
-}
-
-#[derive(Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct PrintProject {
-    project: Project,
-    alias: Option<String>,
 }
 
 async fn execute_list_all<T: Write + Send>(out: &mut T, session_handler: &mut FloqSessionHandler) -> Result<()> {
@@ -172,13 +173,16 @@ async fn execute_list_mine<T: Write + Send>(out: &mut T, session_handler: &mut F
     let mut projects: HashMap<String, PrintProject> = HashMap::new();
     while let Some(next_projects) = set.join_next().await {
         for next in next_projects?? {
-            let key = &next.project.id;
-            if let Some(existing) = projects.get(key) {
-                if existing.alias.is_none() {
-                    projects.insert(key.clone(), next);
+            match projects.entry(next.project.id.clone()) {
+                Entry::Occupied(mut entry) => {
+                    let value = entry.get_mut();
+                    if value.alias.is_none() && next.alias.is_some() {
+                        value.alias = next.alias;
+                    }
                 }
-            } else {
-                projects.insert(key.clone(), next);
+                Entry::Vacant(entry) => {
+                    entry.insert(next);
+                }
             }
         }
     }
@@ -221,7 +225,7 @@ async fn execute_alias<T: Write + Send>(
 
             let project = http_client.get_projects().await?;
             if !project.iter().any(|p| p.id == prosjekt) {
-                return Err(anyhow!("Fant ingen project med koden '{prosjekt}'"));
+                return Err(anyhow!("Fant intet project med koden '{prosjekt}'"));
             }
             let mut config = FloqConfig::from_file().await?;
             if let Some(pa) = config.find_project_alias_by_project_id(&prosjekt) {

@@ -1,20 +1,26 @@
 use std::io::Write;
-use std::path::PathBuf;
-use std::sync::LazyLock;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
+use tokio::sync::OnceCell;
 
 use crate::auth::{AuthResponse, FloqAuth};
-use crate::config::{config_dir, modify_file, read_file};
+use crate::config;
 
-static SESSION_FILE: LazyLock<PathBuf> = LazyLock::new(|| {
-    let mut file = config_dir();
-    file.push("session.toml");
-    file
-});
+static SESSION_FILE: OnceCell<PathBuf> = OnceCell::const_new();
+
+async fn get_session_file_path() -> &'static Path {
+    SESSION_FILE
+        .get_or_init(async || {
+            let mut file = config::config_dir();
+            file.push("session.toml");
+            file
+        })
+        .await
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FloqSession {
@@ -45,7 +51,7 @@ impl From<AuthResponse> for FloqSession {
 
 impl FloqSession {
     async fn from_file(issuer: &str) -> Result<Option<Self>> {
-        let mut sessions = read_file(SESSION_FILE.as_path()).await?;
+        let mut sessions = config::read_file(get_session_file_path().await).await?;
 
         Ok(sessions.remove(issuer).unwrap_or_default())
     }
@@ -53,7 +59,7 @@ impl FloqSession {
     async fn save_to_file(&self, issuer: &str) -> Result<()> {
         let session = self.clone();
         let issuer = issuer.to_string();
-        modify_file::<FloqSession>(SESSION_FILE.as_path(), move |sessions| {
+        config::modify_file::<FloqSession>(get_session_file_path().await, move |sessions| {
             sessions.insert(issuer, session);
         })
         .await
@@ -62,7 +68,7 @@ impl FloqSession {
 
     async fn delete_from_file(issuer: &str) -> Result<()> {
         let issuer = issuer.to_string();
-        modify_file::<FloqSession>(SESSION_FILE.as_path(), move |sessions| {
+        config::modify_file::<FloqSession>(get_session_file_path().await, move |sessions| {
             sessions.remove(&issuer);
         })
         .await

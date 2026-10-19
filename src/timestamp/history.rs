@@ -99,16 +99,15 @@ pub async fn execute<T: Write + Send>(
         }
     };
 
-    let config = FloqConfig::from_file().await?;
     let session = session_handler.open(out, Duration::minutes(1)).await?;
     let client = FloqApiClient::from_session(session);
+    let config = FloqConfig::from_file().await?;
 
     let employee_id = client.get_logged_in_employee().await?.id;
 
     #[derive(Debug)]
     struct DataEntry {
         project_id: String,
-        project_label: String,
         time: Duration,
     }
 
@@ -129,11 +128,6 @@ pub async fn execute<T: Write + Send>(
             let entries = timestamps_for_date?
                 .into_iter()
                 .map(|t| DataEntry {
-                    project_label: config
-                        .find_project_alias_by_project_id(&t.id)
-                        .map(|pa| &pa.alias)
-                        .unwrap_or(&t.id)
-                        .to_string(),
                     project_id: t.id,
                     time: Duration::minutes(t.minutes),
                 })
@@ -155,7 +149,10 @@ pub async fn execute<T: Write + Send>(
         for (_, entries) in &data {
             for entry in entries {
                 let project = ProjectEntry {
-                    project_label: &entry.project_label,
+                    project_label: config
+                        .find_project_alias_by_project_id(&entry.project_id)
+                        .map(|pa| pa.alias.as_str())
+                        .unwrap_or(&entry.project_id),
                     project_id: &entry.project_id,
                 };
                 if !projects.contains(&project) {
