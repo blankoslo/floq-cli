@@ -111,7 +111,7 @@ pub async fn execute<T: Write + Send>(
         time: Duration,
     }
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug)]
     struct ProjectEntry<'a> {
         project_label: &'a str,
         project_id: &'a str,
@@ -148,15 +148,17 @@ pub async fn execute<T: Write + Send>(
         let mut projects = Vec::new();
         for (_, entries) in &data {
             for entry in entries {
-                let project = ProjectEntry {
-                    project_label: config
-                        .find_project_alias_by_project_id(&entry.project_id)
-                        .map(|pa| pa.alias.as_str())
-                        .unwrap_or(&entry.project_id),
-                    project_id: &entry.project_id,
-                };
-                if !projects.contains(&project) {
-                    projects.push(project);
+                if !projects
+                    .iter()
+                    .any(|p: &ProjectEntry<'_>| p.project_id == entry.project_id)
+                {
+                    projects.push(ProjectEntry {
+                        project_label: config
+                            .find_project_alias_by_project_id(&entry.project_id)
+                            .map(|pa| pa.alias.as_str())
+                            .unwrap_or(&entry.project_id),
+                        project_id: &entry.project_id,
+                    });
                 }
             }
         }

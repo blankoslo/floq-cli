@@ -11,7 +11,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tokio::{fs, sync::OnceCell, task};
+use tokio::{sync::OnceCell, task};
 
 use crate::env::ENV;
 
@@ -38,7 +38,7 @@ impl FloqConfig {
 
         match read_file(config_file_path).await {
             Ok(mut configs) => Ok(configs.remove(ENV.issuer).unwrap_or_default()),
-            Err(ReadFileError::Deseralization(_)) => match fs::remove_file(config_file_path).await {
+            Err(ReadFileError::Deseralization(_)) => match tokio::fs::remove_file(config_file_path).await {
                 Ok(_) => Ok(Default::default()),
                 Err(e) => Err(e).context(format!(
                     "Kunne ikke slette ugyldig konfigurasjonsfil, venligst gjør dette manuelt. {}",

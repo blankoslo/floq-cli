@@ -41,13 +41,10 @@ pub struct ProjectCommand {
 #[derive(Subcommand)]
 pub enum ProjectSubcommand {
     /// List opp mine prosjekter (default)
-    #[command()]
     Mine,
     /// List opp alle prosjekter
-    #[command()]
     Alle,
     /// Opprett prosjektalias
-    #[command()]
     Alias(AliasCommand),
 }
 
@@ -61,13 +58,10 @@ pub struct AliasCommand {
 #[derive(Subcommand)]
 pub enum AliasSubcommand {
     /// List opp prosjektalias (default)
-    #[command()]
     List,
     /// Opprette et nytt prosjektalias
-    #[command()]
     Opprett(OpprettAliasArgs),
     /// Slett et eksisterende prosjektalias
-    #[command()]
     Slett(SlettAliasArgs),
 }
 
@@ -107,17 +101,21 @@ pub async fn execute<T: Write + Send>(
 async fn execute_list_all<T: Write + Send>(out: &mut T, session_handler: &mut FloqSessionHandler) -> Result<()> {
     let session = session_handler.open(out, Duration::minutes(1)).await?;
     let client = FloqApiClient::from_session(session);
-    let config = FloqConfig::from_file().await?;
+    let mut alias = FloqConfig::from_file().await?.project_alias;
 
     let mut projects: Vec<PrintProject> = client
         .get_projects()
         .await?
         .into_iter()
-        .map(|project| PrintProject {
-            alias: config
-                .find_project_alias_by_project_id(&project.id)
-                .map(|pa| pa.alias.clone()),
-            project,
+        .map(|project| {
+            let alias_index = alias.iter().enumerate().find(|(_, pa)| pa.project_id == project.id);
+            match alias_index {
+                Some((i, _)) => PrintProject {
+                    project,
+                    alias: Some(alias.remove(i).alias),
+                },
+                None => PrintProject { project, alias: None },
+            }
         })
         .collect();
     projects.sort();
@@ -150,22 +148,23 @@ async fn execute_list_mine<T: Write + Send>(out: &mut T, session_handler: &mut F
             .collect())
     });
     set.spawn(async move {
-        let config = FloqConfig::from_file().await?;
-        if config.project_alias.is_empty() {
+        let mut alias = FloqConfig::from_file().await?.project_alias;
+        if alias.is_empty() {
             Ok(vec![])
         } else {
             let projects = client.get_projects().await?;
             Ok(projects
                 .into_iter()
                 .filter_map(|project| {
-                    config
-                        .project_alias
-                        .iter()
-                        .find(|pa| project.id == pa.project_id)
-                        .map(|pa| PrintProject {
+                    let alias_index = alias.iter().enumerate().find(|(_, pa)| pa.project_id == project.id);
+                    #[allow(clippy::manual_map)] // due to both mutable and immutable borrow if Option::map is used
+                    match alias_index {
+                        Some((i, _)) => Some(PrintProject {
                             project,
-                            alias: Some(pa.alias.clone()),
-                        })
+                            alias: Some(alias.remove(i).alias),
+                        }),
+                        None => None,
+                    }
                 })
                 .collect())
         }
@@ -210,6 +209,10 @@ async fn execute_alias<T: Write + Send>(
         None | Some(AliasSubcommand::List) => {
             let alias = FloqConfig::from_file().await?.project_alias;
 
+            if alias.is_empty() {
+                return Err(anyhow!("Du har ikke opprettet alias enda"));
+            }
+
             let mut table_maker = TableMaker::new();
             table_maker.static_titles(vec!["PROSJEKTID", "ALIAS"]);
             table_maker
@@ -225,7 +228,7 @@ async fn execute_alias<T: Write + Send>(
 
             let project = http_client.get_projects().await?;
             if !project.iter().any(|p| p.id == prosjekt) {
-                return Err(anyhow!("Fant intet project med koden '{prosjekt}'"));
+                return Err(anyhow!("Fant intet prosjekt med koden '{prosjekt}'"));
             }
             let mut config = FloqConfig::from_file().await?;
             if let Some(pa) = config.find_project_alias_by_project_id(&prosjekt) {
