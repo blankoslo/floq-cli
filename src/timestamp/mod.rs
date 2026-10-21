@@ -30,9 +30,9 @@ pub async fn execute<T: Write + Send>(
     out: &mut T,
     session_handler: &mut FloqSessionHandler,
 ) -> Result<()> {
-    let config = FloqConfig::from_file().await?;
+    let project_alias = FloqConfig::project_alias().await?;
 
-    let project_id = match config.find_project_alias_by_alias(&args.prosjekt) {
+    let project_id = match project_alias.find_project_alias_by_alias(&args.prosjekt) {
         Some(pa) => pa.project_id.as_str(),
         None => args.prosjekt.as_str(),
     };
@@ -89,7 +89,7 @@ pub async fn execute<T: Write + Send>(
             "Førte {} ({}) på {} for {}",
             time::Hours(&time),
             time::HoursDiff(time - previous_time),
-            config
+            project_alias
                 .find_project_alias_by_project_id(project_id)
                 .map(|pa| pa.alias.as_str())
                 .unwrap_or(project_id),

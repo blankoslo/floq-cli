@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tokio::{sync::OnceCell, task};
 
@@ -29,11 +29,11 @@ async fn get_config_file_path() -> &'static Path {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FloqConfig {
-    pub project_alias: Vec<ProjectAlias>,
+    project_alias: UserProjectAlias,
 }
 
 impl FloqConfig {
-    pub async fn from_file() -> Result<Self> {
+    async fn from_file() -> Result<Self> {
         let config_file_path = get_config_file_path().await;
 
         match read_file(config_file_path).await {
@@ -49,7 +49,7 @@ impl FloqConfig {
         }
     }
 
-    pub async fn save_to_file(&self) -> Result<()> {
+    async fn save_to_file(&self) -> Result<()> {
         let config = self.clone();
         modify_file(get_config_file_path().await, move |configs| {
             configs.insert(ENV.issuer.to_string(), config);
@@ -58,14 +58,74 @@ impl FloqConfig {
         .context("Kunne ikke lagre oppdatert konfigurasjonsfil")
     }
 
+    pub async fn project_alias() -> Result<UserProjectAlias> {
+        let config = Self::from_file().await?;
+
+        Ok(config.project_alias)
+    }
+
+    pub async fn add_alias(new: ProjectAlias) -> Result<()> {
+        let mut config = Self::from_file().await?;
+        if let Some(pa) = config.project_alias.find_project_alias_by_project_id(&new.project_id) {
+            return Err(anyhow!(
+                "Prosjektet '{}' har allerede et alias '{}'",
+                pa.project_id,
+                pa.alias,
+            ));
+        }
+        if let Some(pa) = config.project_alias.find_project_alias_by_alias(&new.alias) {
+            return Err(anyhow!(
+                "Alias '{}' er allerede i bruk for prosjektet '{}'",
+                pa.alias,
+                pa.project_id,
+            ));
+        }
+
+        config.project_alias.0.push(new);
+        config.save_to_file().await?;
+
+        Ok(())
+    }
+
+    pub async fn remove_alias(alias: impl AsRef<str>) -> Result<()> {
+        let mut config = FloqConfig::from_file().await?;
+        if config.project_alias.find_project_alias_by_alias(&alias).is_none() {
+            return Err(anyhow!("Fant ingen konfiguerte alias med navnet '{}'", alias.as_ref()));
+        }
+
+        let project_alias = config
+            .project_alias
+            .0
+            .into_iter()
+            .filter(|pa| pa.alias != alias.as_ref())
+            .collect();
+        config.project_alias = project_alias;
+        config.save_to_file().await?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct UserProjectAlias(Vec<ProjectAlias>);
+
+impl FromIterator<ProjectAlias> for UserProjectAlias {
+    fn from_iter<T: IntoIterator<Item = ProjectAlias>>(iter: T) -> Self {
+        UserProjectAlias(iter.into_iter().collect())
+    }
+}
+
+impl UserProjectAlias {
+    pub fn into_vec(self) -> Vec<ProjectAlias> {
+        self.0
+    }
+
     pub fn find_project_alias_by_alias(&self, alias: impl AsRef<str>) -> Option<&ProjectAlias> {
-        self.project_alias.iter().find(|pa| pa.alias == alias.as_ref())
+        self.0.iter().find(|pa| pa.alias == alias.as_ref())
     }
 
     pub fn find_project_alias_by_project_id(&self, project_id: impl AsRef<str>) -> Option<&ProjectAlias> {
-        self.project_alias
-            .iter()
-            .find(|pa| pa.project_id == project_id.as_ref())
+        self.0.iter().find(|pa| pa.project_id == project_id.as_ref())
     }
 }
 

@@ -101,7 +101,7 @@ pub async fn execute<T: Write + Send>(
 
     let session = session_handler.open(out, Duration::minutes(1)).await?;
     let client = FloqApiClient::from_session(session);
-    let config = FloqConfig::from_file().await?;
+    let project_alias = FloqConfig::project_alias().await?;
 
     let employee_id = client.get_logged_in_employee().await?.id;
 
@@ -153,7 +153,7 @@ pub async fn execute<T: Write + Send>(
                     .any(|p: &ProjectEntry<'_>| p.project_id == entry.project_id)
                 {
                     projects.push(ProjectEntry {
-                        project_label: config
+                        project_label: project_alias
                             .find_project_alias_by_project_id(&entry.project_id)
                             .map(|pa| pa.alias.as_str())
                             .unwrap_or(&entry.project_id),
