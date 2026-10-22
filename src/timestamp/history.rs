@@ -1,4 +1,5 @@
 use crate::{
+    config::FloqConfig,
     http_client::FloqApiClient,
     session::FloqSessionHandler,
     timestamp::time::{DaySelection, DaySelectionArgs, Days, Hours, RelativeWeek},
@@ -100,12 +101,20 @@ pub async fn execute<T: Write + Send>(
 
     let session = session_handler.open(out, Duration::minutes(1)).await?;
     let client = FloqApiClient::from_session(session);
+    let project_alias = FloqConfig::project_alias().await?;
 
     let employee_id = client.get_logged_in_employee().await?.id;
 
+    #[derive(Debug)]
     struct DataEntry {
         project_id: String,
         time: Duration,
+    }
+
+    #[derive(Debug)]
+    struct ProjectEntry<'a> {
+        project_label: &'a str,
+        project_id: &'a str,
     }
 
     let data: Vec<(String, Vec<DataEntry>)> = {
@@ -139,12 +148,21 @@ pub async fn execute<T: Write + Send>(
         let mut projects = Vec::new();
         for (_, entries) in &data {
             for entry in entries {
-                if !projects.contains(&entry.project_id.as_str()) {
-                    projects.push(entry.project_id.as_str());
+                if !projects
+                    .iter()
+                    .any(|p: &ProjectEntry<'_>| p.project_id == entry.project_id)
+                {
+                    projects.push(ProjectEntry {
+                        project_label: project_alias
+                            .find_project_alias_by_project_id(&entry.project_id)
+                            .map(|pa| pa.alias.as_str())
+                            .unwrap_or(&entry.project_id),
+                        project_id: &entry.project_id,
+                    });
                 }
             }
         }
-        projects.sort();
+        projects.sort_by_key(|p| p.project_label.to_lowercase());
         projects
     };
 
@@ -167,7 +185,7 @@ pub async fn execute<T: Write + Send>(
                 let mut cells = Vec::<prettytable::Cell>::with_capacity(project_axis_len);
                 cells.push(prettytable::cell!("Dato"));
                 for project in &projects {
-                    cells.push(prettytable::cell!(project));
+                    cells.push(prettytable::cell!(project.project_label));
                 }
                 if show_total_per_date {
                     cells.push(prettytable::cell!("Total"));
@@ -182,7 +200,7 @@ pub async fn execute<T: Write + Send>(
                     for project in &projects {
                         let time = entries
                             .iter()
-                            .find(|e| e.project_id == *project)
+                            .find(|e| e.project_id == project.project_id)
                             .map(|e| e.time)
                             .unwrap_or(Duration::zero());
                         if time != Duration::zero() {
@@ -207,7 +225,10 @@ pub async fn execute<T: Write + Send>(
                         let total_time = data
                             .iter()
                             .flat_map(|(_, entries)| {
-                                entries.iter().filter(|e| e.project_id == *project).map(|e| e.time)
+                                entries
+                                    .iter()
+                                    .filter(|e| e.project_id == project.project_id)
+                                    .map(|e| e.time)
                             })
                             .sum::<Duration>();
                         cells.push(prettytable::cell!(r->Hours(total_time)));
@@ -243,11 +264,11 @@ pub async fn execute<T: Write + Send>(
             for project in &projects {
                 rows.push({
                     let mut cells = Vec::<prettytable::Cell>::with_capacity(date_axis_len);
-                    cells.push(prettytable::Cell::new(project));
+                    cells.push(prettytable::Cell::new(project.project_label));
                     for (_, entries) in &data {
                         let time = entries
                             .iter()
-                            .find(|e| e.project_id == *project)
+                            .find(|e| e.project_id == project.project_id)
                             .map(|e| e.time)
                             .unwrap_or(Duration::zero());
                         if time != Duration::zero() {
@@ -260,7 +281,10 @@ pub async fn execute<T: Write + Send>(
                         let total_time = data
                             .iter()
                             .flat_map(|(_, entries)| {
-                                entries.iter().filter(|e| e.project_id == *project).map(|e| e.time)
+                                entries
+                                    .iter()
+                                    .filter(|e| e.project_id == project.project_id)
+                                    .map(|e| e.time)
                             })
                             .sum::<Duration>();
                         cells.push(prettytable::cell!(r->Hours(total_time)));

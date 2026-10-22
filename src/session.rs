@@ -1,16 +1,26 @@
-use std::io::{Read, Seek, Write};
-#[cfg(unix)]
-use std::os::unix::fs::OpenOptionsExt;
-use std::path::Path;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
-use std::{collections::HashMap, env};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
-use tokio::task;
+use tokio::sync::OnceCell;
 
 use crate::auth::{AuthResponse, FloqAuth};
+use crate::config;
+
+static SESSION_FILE: OnceCell<PathBuf> = OnceCell::const_new();
+
+async fn get_session_file_path() -> &'static Path {
+    SESSION_FILE
+        .get_or_init(async || {
+            let mut file = config::config_dir();
+            file.push("session.toml");
+            file
+        })
+        .await
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FloqSession {
@@ -39,133 +49,61 @@ impl From<AuthResponse> for FloqSession {
     }
 }
 
-fn home_path() -> String {
-    env::var("HOME")
-        .or_else(|_| env::var("HOMEPATH"))
-        .expect("Did not find env var 'HOME' or 'HOMEPATH'")
-}
-
-fn folder_path() -> String {
-    home_path() + "/.floq"
-}
-
-async fn read_sessions_file(path: &str) -> Result<HashMap<String, FloqSession>> {
-    // tokio doesn't support file locking, so we use spawn_blocking + std::fs for this operation.
-    // See: https://github.com/tokio-rs/tokio/issues/7523
-    let path = path.to_string();
-    task::spawn_blocking(move || -> Result<HashMap<String, FloqSession>> {
-        match std::fs::File::open(&path) {
-            Ok(mut file) => {
-                file.lock_shared()?;
-                let mut contents = String::new();
-                file.read_to_string(&mut contents)?;
-                let sessions: HashMap<String, FloqSession> = toml::from_str(&contents)?;
-                Ok(sessions)
-            }
-            Err(e) => {
-                if e.kind() == std::io::ErrorKind::NotFound {
-                    Ok(HashMap::default())
-                } else {
-                    Err(anyhow::Error::new(e))
-                }
-            }
-        }
-    })
-    .await?
-}
-
-async fn modify_sessions_file(
-    path: &str,
-    f: impl FnOnce(&mut HashMap<String, FloqSession>) + Send + 'static,
-) -> Result<()> {
-    // tokio doesn't support file locking, so we use spawn_blocking + std::fs for this operation.
-    // See: https://github.com/tokio-rs/tokio/issues/7523
-    let path = Path::new(&path).to_path_buf();
-    task::spawn_blocking(move || -> Result<()> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
-        let mut options = std::fs::OpenOptions::new();
-        options.create(true).read(true).write(true);
-        #[cfg(unix)]
-        options.mode(0o600);
-
-        let mut file = options.open(&path)?;
-        file.lock()?;
-
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)?;
-        let mut sessions: HashMap<String, FloqSession> = toml::from_str(&contents)?;
-        f(&mut sessions);
-        let contents = toml::to_string(&sessions)?;
-        file.set_len(0)?;
-        file.seek(std::io::SeekFrom::Start(0))?;
-        file.write_all(contents.as_bytes())?;
-
-        Ok(())
-    })
-    .await?
-}
-
 impl FloqSession {
-    async fn from_file(path: &str, issuer: &str) -> Result<Option<Self>> {
-        let sessions = read_sessions_file(path).await?;
+    async fn from_file(issuer: &str) -> Result<Option<Self>> {
+        let mut sessions = config::read_file(get_session_file_path().await).await?;
 
-        Ok(sessions.get(issuer).cloned())
+        Ok(sessions.remove(issuer).unwrap_or_default())
     }
 
-    async fn save_to_file(&self, path: &str, issuer: &str) -> Result<()> {
+    async fn save_to_file(&self, issuer: &str) -> Result<()> {
         let session = self.clone();
         let issuer = issuer.to_string();
-        modify_sessions_file(path, move |sessions| {
+        config::modify_file::<FloqSession>(get_session_file_path().await, move |sessions| {
             sessions.insert(issuer, session);
         })
         .await
+        .context("Kunne ikke lagre oppdatert sesjonsfil")
     }
 
-    async fn delete_from_file(path: &str, issuer: &str) -> Result<()> {
+    async fn delete_from_file(issuer: &str) -> Result<()> {
         let issuer = issuer.to_string();
-        modify_sessions_file(path, move |sessions| {
+        config::modify_file::<FloqSession>(get_session_file_path().await, move |sessions| {
             sessions.remove(&issuer);
         })
         .await
+        .context("Kunne ikke lagre sesjonsfil etter sletting av sesjon")
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct FloqSessionHandler {
-    file_path: String,
     auth: FloqAuth,
     session: Option<FloqSession>,
 }
 
 impl Default for FloqSessionHandler {
     fn default() -> Self {
-        Self::new(folder_path() + "/session.toml", FloqAuth::default()).unwrap()
+        Self::new(FloqAuth::default()).unwrap()
     }
 }
 
 impl FloqSessionHandler {
-    pub fn new(file_path: String, auth: FloqAuth) -> Result<Self> {
-        Ok(Self {
-            file_path,
-            auth,
-            session: None,
-        })
+    pub fn new(auth: FloqAuth) -> Result<Self> {
+        Ok(Self { auth, session: None })
     }
 
     async fn authenticate<OUT: Write + Send>(&mut self, out: &mut OUT) -> Result<&FloqSession> {
         let auth_response = self.auth.authenticate(out).await?;
         let session: FloqSession = auth_response.into();
-        session.save_to_file(&self.file_path, self.auth.issuer()).await?;
+        session.save_to_file(self.auth.issuer()).await?;
         self.session = Some(session);
         Ok(self.session.as_ref().unwrap())
     }
 
     async fn resume(&mut self, leeway: TimeDelta) -> Result<Option<&FloqSession>> {
         if self.session.is_none() {
-            self.session = FloqSession::from_file(&self.file_path, self.auth.issuer()).await?;
+            self.session = FloqSession::from_file(self.auth.issuer()).await?;
         }
 
         if let Some(session) = &mut self.session {
@@ -179,7 +117,7 @@ impl FloqSessionHandler {
                     if session.refresh_token.is_none() {
                         session.refresh_token = Some(refresh_token);
                     }
-                    session.save_to_file(&self.file_path, self.auth.issuer()).await?;
+                    session.save_to_file(self.auth.issuer()).await?;
                     Ok(Some(session))
                 } else {
                     Ok(None)
@@ -212,7 +150,7 @@ impl FloqSessionHandler {
 
     pub async fn terminate(&mut self) -> Result<bool> {
         if self.session.is_none() {
-            self.session = FloqSession::from_file(&self.file_path, self.auth.issuer()).await?;
+            self.session = FloqSession::from_file(self.auth.issuer()).await?;
         }
 
         let terminated = if let Some(session) = self.session.take() {
@@ -220,7 +158,7 @@ impl FloqSessionHandler {
                 self.auth.revoke(refresh_token).await?;
             }
 
-            FloqSession::delete_from_file(&self.file_path, self.auth.issuer()).await?;
+            FloqSession::delete_from_file(self.auth.issuer()).await?;
 
             true
         } else {

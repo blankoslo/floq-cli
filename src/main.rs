@@ -6,6 +6,7 @@ use clap::{Parser, Subcommand};
 use crate::session::FloqSessionHandler;
 
 mod auth;
+mod config;
 mod env;
 mod http_client;
 mod print;
@@ -29,7 +30,7 @@ enum Commands {
     User(user::UserCommand),
     /// Vis prosjekter
     #[command(name = "prosjekter")]
-    Projects(project::ProjectArgs),
+    Projects(project::ProjectCommand),
     /// Før timer på et prosjekt
     #[command(name = "timeføring")]
     Timestamp(timestamp::TimestampArgs),

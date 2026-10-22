@@ -1,4 +1,6 @@
-use crate::{http_client::FloqApiClient, session::FloqSessionHandler, timestamp::time::DaySelection};
+use crate::{
+    config::FloqConfig, http_client::FloqApiClient, session::FloqSessionHandler, timestamp::time::DaySelection,
+};
 
 use std::io::Write;
 
@@ -13,7 +15,7 @@ mod time;
 
 #[derive(Args)]
 pub struct TimestampArgs {
-    /// Prosjektet du ønsker å føre timer på
+    /// Prosjektet (id eller alias) du ønsker å føre timer på
     prosjekt: String,
 
     /// Antall timer du ønsker å føre, settes til "7.5" hvis utelatt
@@ -28,7 +30,12 @@ pub async fn execute<T: Write + Send>(
     out: &mut T,
     session_handler: &mut FloqSessionHandler,
 ) -> Result<()> {
-    let project_id = args.prosjekt.as_str();
+    let project_alias = FloqConfig::project_alias().await?;
+
+    let project_id = match project_alias.find_project_alias_by_alias(&args.prosjekt) {
+        Some(pa) => pa.project_id.as_str(),
+        None => args.prosjekt.as_str(),
+    };
 
     let hours = args.timer.unwrap_or(7.5);
     let time = Duration::minutes((hours * 60.0) as i64);
@@ -82,7 +89,10 @@ pub async fn execute<T: Write + Send>(
             "Førte {} ({}) på {} for {}",
             time::Hours(&time),
             time::HoursDiff(time - previous_time),
-            project_id,
+            project_alias
+                .find_project_alias_by_project_id(project_id)
+                .map(|pa| pa.alias.as_str())
+                .unwrap_or(project_id),
             label,
         )?;
     }
